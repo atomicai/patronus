@@ -33,6 +33,13 @@ MANIFEST
 *.manifest
 *.spec
 
+# Session
+flask_session/*
+
+# VSCODE
+
+.vscode/*
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
