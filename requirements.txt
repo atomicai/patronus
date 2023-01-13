@@ -1,0 +1,10 @@
+torch==1.13.1
+catalyst==22.2
+transformers==4.25.1
+sentence-transformers==2.2.2
+more-itertools
+Flask==2.0.1
+Flask-Session==0.4.0
+simplejson==3.18.1
+kombu==5.2.4
+bertopic==0.13.0
