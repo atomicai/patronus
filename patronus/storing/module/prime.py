@@ -120,8 +120,8 @@ class SQLDocStore(BaseDocStore):
     def __init__(
         self,
         url: str = "sqlite://",
-        index: str = "label",
-        label_index: str = "label_index",
+        index: str = "document",
+        label_index: str = "label",
         duplicate_documents: str = "overwrite",
         check_same_thread: bool = False,
         isolation_level: Optional[str] = None,
@@ -141,7 +141,8 @@ class SQLDocStore(BaseDocStore):
                                     fail: an error is raised if the document ID of the document being added already
                                     exists.
         :param check_same_thread: Set to False to mitigate multithreading issues
-        in older SQLite versions (see https://docs.sqlalchemy.org/en/14/dialects/sqlite.html?highlight=check_same_thread#threading-pooling-behavior)
+        in older SQLite versions
+        (see https://docs.sqlalchemy.org/en/14/dialects/sqlite.html?highlight=check_same_thread#threading-pooling-behavior)
         :param isolation_level: see SQLAlchemy's `isolation_level` parameter for `create_engine()` (https://docs.sqlalchemy.org/en/14/core/engines.html#sqlalchemy.create_engine.params.isolation_level)
         """
         super().__init__()
@@ -160,7 +161,8 @@ class SQLDocStore(BaseDocStore):
         self.duplicate_documents = duplicate_documents
         if getattr(self, "similarity", None) is None:
             self.similarity = None
-        self.use_windowed_query = True
+
+        self.use_windowed_query = False
         # TODO: Check the version behind the windowed query
 
     def get_document_by_id(
@@ -329,7 +331,7 @@ class SQLDocStore(BaseDocStore):
 
         for row in meta_query.all():
             documents_map[row.document_id].meta[row.name] = row.value
-        return
+        return documents_map
 
     def get_all_labels(self, index=None, filters: Optional[FilterType] = None, headers: Optional[Dict[str, str]] = None):
         """
