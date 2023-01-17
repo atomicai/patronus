@@ -1,5 +1,4 @@
 import uuid
-from copy import deepcopy
 from dataclasses import InitVar, asdict, dataclass
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -65,7 +64,13 @@ class Document:
         self.score = score
         self.meta = meta or {}
 
-        allowed_hash_key_attributes = ["content", "content_type", "score", "meta", "embedding"]
+        allowed_hash_key_attributes = [
+            "content",
+            "content_type",
+            "score",
+            "meta",
+            "embedding",
+        ]
 
         if id_hash_keys is not None:
             if not set(id_hash_keys) <= set(allowed_hash_key_attributes):  # type: ignore
@@ -130,7 +135,12 @@ class Document:
         return _doc
 
     @classmethod
-    def from_dict(cls, dict: Dict[str, Any], field_map: Dict[str, Any] = {}, id_hash_keys: Optional[List[str]] = None):
+    def from_dict(
+        cls,
+        dict: Dict[str, Any],
+        field_map: Dict[str, Any] = {},
+        id_hash_keys: Optional[List[str]] = None,
+    ):
         """
         Create Document from dict. An optional field_map can be supplied to adjust for custom names of the keys in the
         input dict. This way you can work with standardized Document objects in Haystack, but adjust the format that
@@ -143,7 +153,15 @@ class Document:
         """
 
         _doc = dict.copy()
-        init_args = ["content", "content_type", "id", "score", "question", "meta", "embedding"]
+        init_args = [
+            "content",
+            "content_type",
+            "id",
+            "score",
+            "question",
+            "meta",
+            "embedding",
+        ]
         if "meta" not in _doc.keys():
             _doc["meta"] = {}
         # copy additional fields into "meta"
@@ -255,17 +273,17 @@ class Label:
     def __eq__(self, other):
         return (
             isinstance(other, self.__class__)
-            and getattr(other, 'question', None) == self.question
-            and getattr(other, 'answer', None) == self.answer
-            and getattr(other, 'is_correct_answer', None) == self.is_correct_answer
-            and getattr(other, 'is_correct_document', None) == self.is_correct_document
-            and getattr(other, 'origin', None) == self.origin
-            and getattr(other, 'document_id', None) == self.document_id
-            and getattr(other, 'offset_start_in_doc', None) == self.offset_start_in_doc
-            and getattr(other, 'no_answer', None) == self.no_answer
-            and getattr(other, 'model_id', None) == self.model_id
-            and getattr(other, 'created_at', None) == self.created_at
-            and getattr(other, 'updated_at', None) == self.updated_at
+            and getattr(other, "question", None) == self.question
+            and getattr(other, "answer", None) == self.answer
+            and getattr(other, "is_correct_answer", None) == self.is_correct_answer
+            and getattr(other, "is_correct_document", None) == self.is_correct_document
+            and getattr(other, "origin", None) == self.origin
+            and getattr(other, "document_id", None) == self.document_id
+            and getattr(other, "offset_start_in_doc", None) == self.offset_start_in_doc
+            and getattr(other, "no_answer", None) == self.no_answer
+            and getattr(other, "model_id", None) == self.model_id
+            and getattr(other, "created_at", None) == self.created_at
+            and getattr(other, "updated_at", None) == self.updated_at
         )
 
     def __hash__(self):

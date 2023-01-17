@@ -3,7 +3,14 @@ from wordcloud import WordCloud
 
 
 def plotly_wordcloud(text, scale=1):
-    wc = WordCloud(max_words=100, font_step=0.5, max_font_size=15, width=1250, height=450, scale=scale)
+    wc = WordCloud(
+        max_words=100,
+        font_step=0.5,
+        max_font_size=15,
+        width=1250,
+        height=450,
+        scale=scale,
+    )
     wc.generate(text)
 
     word_list = []
@@ -38,18 +45,18 @@ def plotly_wordcloud(text, scale=1):
         x=x,
         y=y,
         textfont=dict(size=new_freq_list, color=color_list),
-        hoverinfo='text',
-        hovertext=['{0}{1}'.format(w, f) for w, f in zip(word_list, freq_list)],
-        mode='text',
+        hoverinfo="text",
+        hovertext=["{0}{1}".format(w, f) for w, f in zip(word_list, freq_list)],
+        mode="text",
         text=word_list,
     )
 
     layout = go.Layout(
         {
-            'xaxis': {'showgrid': False, 'showticklabels': False, 'zeroline': False},
-            'yaxis': {'showgrid': False, 'showticklabels': False, 'zeroline': False},
-            "paper_bgcolor": 'rgba(0,0,0,0)',
-            "plot_bgcolor": 'rgba(0,0,0,0)',
+            "xaxis": {"showgrid": False, "showticklabels": False, "zeroline": False},
+            "yaxis": {"showgrid": False, "showticklabels": False, "zeroline": False},
+            "paper_bgcolor": "rgba(0,0,0,0)",
+            "plot_bgcolor": "rgba(0,0,0,0)",
             "width": 1250,
             "height": 450,
         }

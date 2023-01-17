@@ -8,7 +8,13 @@ class Chunker(IChunker):
         model = NNSplit(model_path=IPath.runnsplitpath)
         super(Chunker, self).__init__(model, num_tokens=num_tokens, window_size=window_size)
 
-    def chunkify(self, text: str, num_tokens: int = None, window_size: int = None, as_document: bool = False):
+    def chunkify(
+        self,
+        text: str,
+        num_tokens: int = None,
+        window_size: int = None,
+        as_document: bool = False,
+    ):
         num_tokens = num_tokens or self.num_tokens
         window_size = window_size or self.window_size
         response = []

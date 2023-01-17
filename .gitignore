@@ -38,7 +38,10 @@ flask_session/*
 
 # VSCODE
 
-.vscode/*
+*.vscode
+
+# SQLite
+*.sqlite
 
 # Installer logs
 pip-log.txt

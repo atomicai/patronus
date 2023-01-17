@@ -25,7 +25,7 @@ class SEMIEvaluator(IREvaluator):
             from sentence_transformers import SentenceTransformer
         except ImportError:
             raise ValueError(
-                f"Please install <a href=\"https://pypi.org/project/sentence-transformers/\">sentence-transformers</a> first."
+                f'Please install <a href="https://pypi.org/project/sentence-transformers/">sentence-transformers</a> first.'
             )
         super(SEMIEvaluator, self).__init__()
         self.model = SentenceTransformer(model_name_or_path)
@@ -51,7 +51,7 @@ class STIREvaluator(IREvaluator):
                 assert isinstance(fn, Callable), "The metric you provide is neither Callable not a name"
                 metrics[str(fn)] = fn
                 continue
-            assert fn in metrica.keys(), f"The metric name \"{str(fn)}\" is not implemented"
+            assert fn in metrica.keys(), f'The metric name "{str(fn)}" is not implemented'
             metrics[fn] = metrica[str(fn)]
 
     def evaluate(self, dataset: List[Dict], mode: str = "hard", return_every_score=False):

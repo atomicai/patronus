@@ -2,12 +2,9 @@ import collections
 import json
 import logging
 import os
-import threading
 import uuid
 from pathlib import Path
 from pprint import pprint as pp
-from time import sleep, time
-from typing import Dict
 
 import plotly
 import polars as pl
@@ -40,12 +37,17 @@ processor = lambda x: x.lower().strip().split(" ")
 
 model = SentenceTransformer("paraphrase-multilingual-mpnet-base-v2", device=devices[0])
 store = collections.defaultdict()
-topmodel = BERTopic(language="multilingual", n_gram_range=(1, 2), min_topic_size=7, umap_model=UMAP(random_state=42))
+topmodel = BERTopic(
+    language="multilingual",
+    n_gram_range=(1, 2),
+    min_topic_size=7,
+    umap_model=UMAP(random_state=42),
+)
 stopper = IStopper()
 
 
 def search():
-    data = request.get_data(parse_form_data=True).decode('utf-8-sig')
+    data = request.get_data(parse_form_data=True).decode("utf-8-sig")
     data = json.loads(data)
     # Placeholder to retrieve all the document(s) from the indexing phaze
     ic(data)
@@ -66,7 +68,7 @@ def search():
 def upload():
     response = {}
     logger.info("welcome to upload`")
-    xf = request.files['file']
+    xf = request.files["file"]
     filename = secure_filename(xf.filename)
     ic(f"{filename}")
     if "uid" not in session.keys():
@@ -99,7 +101,14 @@ def iload():
     #
     uid = session["uid"]
     filename = Path(session["filename"])
-    df = next(get_data(data_dir=cache_dir / uid, filename=filename.stem, ext=filename.suffix, engine="polars"))
+    df = next(
+        get_data(
+            data_dir=cache_dir / uid,
+            filename=filename.stem,
+            ext=filename.suffix,
+            engine="polars",
+        )
+    )
     # df = pipe.pipe_polar(df, txt_col_name=data["text"], fn=stopper)
     arr = df.to_arrow()
     try:
@@ -175,14 +184,26 @@ def view_timeseries():
     plopics = (
         plopics.sort("Frequency")
         .groupby("Topic")
-        .agg([pl.col("Words").last(), pl.col("Frequency").last(), pl.col("Timestamp").last()])
+        .agg(
+            [
+                pl.col("Words").last(),
+                pl.col("Frequency").last(),
+                pl.col("Timestamp").last(),
+            ]
+        )
     ).to_dict()
 
     plopics = {k: list(v) for k, v in plopics.items()}
 
     # TODO: use timestamp from topics_over_time!
     report_filepath = Path(os.getcwd()) / ".cache" / uid / str(filename.stem + ".xlsx")
-    pipe.report_overall_topics(keywords=top_n_words, info=info, filepath=str(report_filepath), plopics=plopics, topk=5)
+    pipe.report_overall_topics(
+        keywords=top_n_words,
+        info=info,
+        filepath=str(report_filepath),
+        plopics=plopics,
+        topk=5,
+    )
     # TODO: send the report over email to the recievers with attachment(s) = [report_filepath]
     if session.get("email", None) is not None:
         pipe.send_over_email(
@@ -193,8 +214,16 @@ def view_timeseries():
             author="itarlinskiy@yandex.ru",
         )
     fig = topmodel.visualize_topics_over_time(topics_over_time, top_n_topics=10)
-
-    return plotly.io.to_json(fig, pretty=True)
+    response = [
+        {"figure": json.loads(plotly.io.to_json(fig, pretty=True))},
+        {
+            "figure": json.loads(plotly.io.to_json(fig, pretty=True)),
+            "keywords": [{"data": ["один", "два", "три"], "title": "TOPIC title", "url": "viewing_keywording"}],
+        },
+        {"figure": json.loads(plotly.io.to_json(fig, pretty=True))},
+    ]
+    return jsonify(response)
+    # return plotly.io.to_json(fig, pretty=True)
 
 
 def view_clustering():
@@ -210,7 +239,7 @@ def view_clustering():
 
 
 def snapshot():
-    data = request.get_data(parse_form_data=True).decode('utf-8-sig')
+    data = request.get_data(parse_form_data=True).decode("utf-8-sig")
     data = json.loads(data)
     # Placeholder to retrieve all the document(s) from the indexing phase
     ic(data)
@@ -222,4 +251,11 @@ def snapshot():
     # Supposed to return the json with the filename to download
 
 
-__all__ = ["upload", "iload", "view_timeseries", "view_clustering", "snapshot", "search"]
+__all__ = [
+    "upload",
+    "iload",
+    "view_timeseries",
+    "view_clustering",
+    "snapshot",
+    "search",
+]

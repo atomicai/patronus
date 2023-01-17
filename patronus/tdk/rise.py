@@ -4,9 +4,9 @@ import pathlib
 
 import dotenv
 import numpy as np
+
 # import plotly.express as px
-from flask import (Flask, jsonify, render_template, request, send_file,
-                   send_from_directory, session)
+from flask import Flask, jsonify, render_template, request, send_file, send_from_directory, session
 from icecream import ic
 from kombu import Connection, Exchange, Queue
 from sentence_transformers import SentenceTransformer
@@ -35,30 +35,30 @@ index = os.environ.get("INDEX", "document")
 store = MemoDocStore(index=index)
 cache_dir = pathlib.Path(os.getcwd()) / ".cache"
 
-exchange = Exchange('media', 'direct', durable=True)
-inqueue = Queue('inq', exchange=exchange, routing_key="aiquery")
+exchange = Exchange("media", "direct", durable=True)
+inqueue = Queue("inq", exchange=exchange, routing_key="aiquery")
 outqeue = Queue("ouq", exchange=exchange, routing_key="airesponse")
 
 app = Flask(
     __name__,
-    template_folder='build',
-    static_folder='build',
-    root_path=pathlib.Path(os.getcwd()) / 'patronus',
+    template_folder="build",
+    static_folder="build",
+    root_path=pathlib.Path(os.getcwd()) / "patronus",
 )
 app.secret_key = "expectopatronum"
-app.config['SESSION_TYPE'] = 'filesystem'
+app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
 logger.info("NEW INSTANCE is created")
 
 
-@app.route('/', defaults={'path': ''})
+@app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def index(path):
-    if path != '' and os.path.exists(app.static_folder + '/' + path):
+    if path != "" and os.path.exists(app.static_folder + "/" + path):
         return send_from_directory(app.static_folder, path)
     else:
-        return send_from_directory(app.static_folder, 'index.html')
+        return send_from_directory(app.static_folder, "index.html")
 
 
 app.add_url_rule("/searching", methods=["POST"], view_func=prime.search)

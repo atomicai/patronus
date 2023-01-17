@@ -1,4 +1,3 @@
-import email
 import os
 from email.encoders import encode_base64
 from email.mime.base import MIMEBase
@@ -10,16 +9,15 @@ from mimetypes import guess_type
 from pathlib import Path
 from smtplib import SMTP, SMTP_SSL  # Use this for standard SMTP protocol   (port 25, no encryption)
 from typing import List
-import os
 
 
 class Email(object):
     # Standard (non-secure) SMTP port - 25. SSL encrypted port - 465.
     SMTP_CONFIG = dict(
-        server=os.environ.get("SMTP_SERVER"), 
+        server=os.environ.get("SMTP_SERVER"),
         port=465,
-        username=os.environ.get("SMTP_USERNAME"), 
-        password=os.environ.get("SMTP_PASSWORD")
+        username=os.environ.get("SMTP_USERNAME"),
+        password=os.environ.get("SMTP_PASSWORD"),
     )
 
     # typical values for text_subtype are plain, html, xml
@@ -34,7 +32,15 @@ class Email(object):
         self.connection.set_debuglevel(debug)
         self.connection.login(SMTP_CONFIG["username"], SMTP_CONFIG["password"])
 
-    def send(self, subject, message, receivers, attachments: List[str], sender=None, content_type=None):
+    def send(
+        self,
+        subject,
+        message,
+        receivers,
+        attachments: List[str],
+        sender=None,
+        content_type=None,
+    ):
         if not content_type:
             content_type = self.DEFAULT_CONTENT_TYPE
 
@@ -48,20 +54,24 @@ class Email(object):
         html += "</body></html>"
         msg = MIMEMultipart()
         # TODO: MIMEMultipart might become ambiguous. Fix it before proceeding further
-        msg['Subject'] = subject
-        msg['From'] = sender
-        msg['To'] = ', '.join(receivers)
+        msg["Subject"] = subject
+        msg["From"] = sender
+        msg["To"] = ", ".join(receivers)
         # emailMsg['Cc'] = ", ".join(cc) Кого в копию поставить
-        msg.attach(MIMEText(html, 'html'))
+        msg.attach(MIMEText(html, "html"))
 
         for filepath in attachments:
             mimetype, encoding = guess_type(str(filepath))
-            mimetype = mimetype.split('/', 1)
+            mimetype = mimetype.split("/", 1)
             attach = MIMEBase(mimetype[0], mimetype[1])
             with open(str(Path(filepath)), "rb") as fp:
                 attach.set_payload(fp.read())
                 encode_base64(attach)
-                attach.add_header('Content-Disposition', 'attachment', filename=os.path.basename(filepath))
+                attach.add_header(
+                    "Content-Disposition",
+                    "attachment",
+                    filename=os.path.basename(filepath),
+                )
             msg.attach(attach)
 
         self.connection.sendmail(sender, receivers, msg.as_string())

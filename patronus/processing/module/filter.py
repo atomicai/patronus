@@ -1,11 +1,13 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from sqlalchemy import and_, or_
 from sqlalchemy.sql import select
 
 from patronus.processing import convert_date_to_rfc3339
+
+FilterType = Dict[str, Union[Dict[str, Any], List[Any], str, int, float, bool]]
 
 
 def nested_defaultdict() -> defaultdict:
@@ -129,26 +131,22 @@ class LogicalFilterClause(ABC):
         """
         Converts the LogicalFilterClause instance to an Elasticsearch filter.
         """
-        pass
 
     @abstractmethod
     def convert_to_sql(self, meta_document_orm):
         """
         Converts the LogicalFilterClause instance to an SQL filter.
         """
-        pass
 
     def convert_to_weaviate(self):
         """
         Converts the LogicalFilterClause instance to a Weaviate filter.
         """
-        pass
 
     def convert_to_pinecone(self):
         """
         Converts the LogicalFilterClause instance to a Pinecone filter.
         """
-        pass
 
     def _merge_es_range_queries(self, conditions: List[Dict]) -> List[Dict[str, Dict]]:
         """
@@ -177,7 +175,6 @@ class LogicalFilterClause(ABC):
         Necessary for Weaviate as Weaviate doesn't seem to support the 'Not' operator anymore.
         (https://github.com/semi-technologies/weaviate/issues/1717)
         """
-        pass
 
 
 class ComparisonOperation(ABC):
@@ -226,27 +223,23 @@ class ComparisonOperation(ABC):
         """
         Converts the ComparisonOperation instance to an Elasticsearch query.
         """
-        pass
 
     @abstractmethod
     def convert_to_sql(self, meta_document_orm):
         """
         Converts the ComparisonOperation instance to an SQL filter.
         """
-        pass
 
     @abstractmethod
     def convert_to_weaviate(self):
         """
         Converts the ComparisonOperation instance to a Weaviate comparison operator.
         """
-        pass
 
     def convert_to_pinecone(self):
         """
         Converts the ComparisonOperation instance to a Pinecone comparison operator.
         """
-        pass
 
     @abstractmethod
     def invert(self) -> "ComparisonOperation":
@@ -255,7 +248,6 @@ class ComparisonOperation(ABC):
         Necessary for Weaviate as Weaviate doesn't seem to support the 'Not' operator anymore.
         (https://github.com/semi-technologies/weaviate/issues/1717)
         """
-        pass
 
     def _get_weaviate_datatype(
         self, value: Optional[Union[str, int, float, bool]] = None
@@ -314,7 +306,9 @@ class NotOperation(LogicalFilterClause):
         ]
         return select(meta_document_orm.document_id).filter(~or_(*conditions))
 
-    def convert_to_weaviate(self) -> Dict[str, Union[str, int, float, bool, List[Dict]]]:
+    def convert_to_weaviate(
+        self,
+    ) -> Dict[str, Union[str, int, float, bool, List[Dict]]]:
         conditions = [condition.invert().convert_to_weaviate() for condition in self.conditions]
         if len(conditions) > 1:
             # Conditions in self.conditions are by default combined with AND which becomes OR according to DeMorgan
@@ -322,7 +316,9 @@ class NotOperation(LogicalFilterClause):
         else:
             return conditions[0]
 
-    def convert_to_pinecone(self) -> Dict[str, Union[str, int, float, bool, List[Dict]]]:
+    def convert_to_pinecone(
+        self,
+    ) -> Dict[str, Union[str, int, float, bool, List[Dict]]]:
         conditions = [condition.invert().convert_to_pinecone() for condition in self.conditions]
         if len(conditions) > 1:
             # Conditions in self.conditions are by default combined with AND which becomes OR according to DeMorgan
@@ -415,7 +411,7 @@ class EqOperation(ComparisonOperation):
 
     def convert_to_elasticsearch(
         self,
-    ) -> Dict[str, Dict[str, Union[str, int, float, bool, Dict[str, Union[list, Dict[str, str]]]]]]:
+    ) -> Dict[str, Dict[str, Union[str, int, float, bool, Dict[str, Union[list, Dict[str, str]]]]],]:
         if isinstance(self.comparison_value, list):
             return {
                 "terms_set": {
@@ -431,14 +427,21 @@ class EqOperation(ComparisonOperation):
 
     def convert_to_sql(self, meta_document_orm):
         return select([meta_document_orm.document_id]).where(
-            meta_document_orm.name == self.field_name, meta_document_orm.value == self.comparison_value
+            meta_document_orm.name == self.field_name,
+            meta_document_orm.value == self.comparison_value,
         )
 
     def convert_to_weaviate(self) -> Dict[str, Union[List[str], str, int, float, bool]]:
         comp_value_type, comp_value = self._get_weaviate_datatype()
-        return {"path": [self.field_name], "operator": "Equal", comp_value_type: comp_value}
+        return {
+            "path": [self.field_name],
+            "operator": "Equal",
+            comp_value_type: comp_value,
+        }
 
-    def convert_to_pinecone(self) -> Dict[str, Dict[str, Union[List[str], str, int, float, bool]]]:
+    def convert_to_pinecone(
+        self,
+    ) -> Dict[str, Dict[str, Union[List[str], str, int, float, bool]]]:
         return {self.field_name: {"$eq": self.comparison_value}}
 
     def invert(self) -> "NeOperation":
@@ -463,17 +466,27 @@ class InOperation(ComparisonOperation):
 
     def convert_to_sql(self, meta_document_orm):
         return select([meta_document_orm.document_id]).where(
-            meta_document_orm.name == self.field_name, meta_document_orm.value.in_(self.comparison_value)
+            meta_document_orm.name == self.field_name,
+            meta_document_orm.value.in_(self.comparison_value),
         )
 
     def convert_to_weaviate(self) -> Dict[str, Union[str, List[Dict]]]:
-        filter_dict: Dict[str, Union[str, List[Dict]]] = {"operator": "Or", "operands": []}
+        filter_dict: Dict[str, Union[str, List[Dict]]] = {
+            "operator": "Or",
+            "operands": [],
+        }
         if not isinstance(self.comparison_value, list):
             raise ValueError("'$in' operation requires comparison value to be a list.")
         for value in self.comparison_value:
             comp_value_type, comp_value = self._get_weaviate_datatype(value)
             assert isinstance(filter_dict["operands"], list)  # Necessary for mypy
-            filter_dict["operands"].append({"path": [self.field_name], "operator": "Equal", comp_value_type: comp_value})
+            filter_dict["operands"].append(
+                {
+                    "path": [self.field_name],
+                    "operator": "Equal",
+                    comp_value_type: comp_value,
+                }
+            )
 
         return filter_dict
 
@@ -496,21 +509,30 @@ class NeOperation(ComparisonOperation):
             return False
         return fields[self.field_name] != self.comparison_value
 
-    def convert_to_elasticsearch(self) -> Dict[str, Dict[str, Dict[str, Dict[str, Union[str, int, float, bool]]]]]:
+    def convert_to_elasticsearch(
+        self,
+    ) -> Dict[str, Dict[str, Dict[str, Dict[str, Union[str, int, float, bool]]]]]:
         if isinstance(self.comparison_value, list):
             raise ValueError("Use '$nin' operation for lists as comparison values.")
         return {"bool": {"must_not": {"term": {self.field_name: self.comparison_value}}}}
 
     def convert_to_sql(self, meta_document_orm):
         return select([meta_document_orm.document_id]).where(
-            meta_document_orm.name == self.field_name, meta_document_orm.value != self.comparison_value
+            meta_document_orm.name == self.field_name,
+            meta_document_orm.value != self.comparison_value,
         )
 
     def convert_to_weaviate(self) -> Dict[str, Union[List[str], str, int, float, bool]]:
         comp_value_type, comp_value = self._get_weaviate_datatype()
-        return {"path": [self.field_name], "operator": "NotEqual", comp_value_type: comp_value}
+        return {
+            "path": [self.field_name],
+            "operator": "NotEqual",
+            comp_value_type: comp_value,
+        }
 
-    def convert_to_pinecone(self) -> Dict[str, Dict[str, Union[List[str], str, int, float, bool]]]:
+    def convert_to_pinecone(
+        self,
+    ) -> Dict[str, Dict[str, Union[List[str], str, int, float, bool]]]:
         return {self.field_name: {"$ne": self.comparison_value}}
 
     def invert(self) -> "EqOperation":
@@ -528,24 +550,36 @@ class NinOperation(ComparisonOperation):
         return fields[self.field_name] not in self.comparison_value  # type: ignore
         # is only initialized with lists, but changing the type annotation would mean duplicating __init__
 
-    def convert_to_elasticsearch(self) -> Dict[str, Dict[str, Dict[str, Dict[str, List]]]]:
+    def convert_to_elasticsearch(
+        self,
+    ) -> Dict[str, Dict[str, Dict[str, Dict[str, List]]]]:
         if not isinstance(self.comparison_value, list):
             raise ValueError("'$nin' operation requires comparison value to be a list.")
         return {"bool": {"must_not": {"terms": {self.field_name: self.comparison_value}}}}
 
     def convert_to_sql(self, meta_document_orm):
         return select([meta_document_orm.document_id]).where(
-            meta_document_orm.name == self.field_name, meta_document_orm.value.notin_(self.comparison_value)
+            meta_document_orm.name == self.field_name,
+            meta_document_orm.value.notin_(self.comparison_value),
         )
 
     def convert_to_weaviate(self) -> Dict[str, Union[str, List[Dict]]]:
-        filter_dict: Dict[str, Union[str, List[Dict]]] = {"operator": "And", "operands": []}
+        filter_dict: Dict[str, Union[str, List[Dict]]] = {
+            "operator": "And",
+            "operands": [],
+        }
         if not isinstance(self.comparison_value, list):
             raise ValueError("'$nin' operation requires comparison value to be a list.")
         for value in self.comparison_value:
             comp_value_type, comp_value = self._get_weaviate_datatype(value)
             assert isinstance(filter_dict["operands"], list)  # Necessary for mypy
-            filter_dict["operands"].append({"path": [self.field_name], "operator": "NotEqual", comp_value_type: comp_value})
+            filter_dict["operands"].append(
+                {
+                    "path": [self.field_name],
+                    "operator": "NotEqual",
+                    comp_value_type: comp_value,
+                }
+            )
 
         return filter_dict
 
@@ -568,21 +602,28 @@ class GtOperation(ComparisonOperation):
             return False
         return fields[self.field_name] > self.comparison_value
 
-    def convert_to_elasticsearch(self) -> Dict[str, Dict[str, Dict[str, Union[str, float, int]]]]:
+    def convert_to_elasticsearch(
+        self,
+    ) -> Dict[str, Dict[str, Dict[str, Union[str, float, int]]]]:
         if isinstance(self.comparison_value, list):
             raise ValueError("Comparison value for '$gt' operation must not be a list.")
         return {"range": {self.field_name: {"gt": self.comparison_value}}}
 
     def convert_to_sql(self, meta_document_orm):
         return select([meta_document_orm.document_id]).where(
-            meta_document_orm.name == self.field_name, meta_document_orm.value > self.comparison_value
+            meta_document_orm.name == self.field_name,
+            meta_document_orm.value > self.comparison_value,
         )
 
     def convert_to_weaviate(self) -> Dict[str, Union[List[str], str, float, int]]:
         comp_value_type, comp_value = self._get_weaviate_datatype()
         if isinstance(comp_value, list):
             raise ValueError("Comparison value for '$gt' operation must not be a list.")
-        return {"path": [self.field_name], "operator": "GreaterThan", comp_value_type: comp_value}
+        return {
+            "path": [self.field_name],
+            "operator": "GreaterThan",
+            comp_value_type: comp_value,
+        }
 
     def convert_to_pinecone(self) -> Dict[str, Dict[str, Union[float, int]]]:
         if not isinstance(self.comparison_value, (float, int)):
@@ -603,21 +644,28 @@ class GteOperation(ComparisonOperation):
             return False
         return fields[self.field_name] >= self.comparison_value
 
-    def convert_to_elasticsearch(self) -> Dict[str, Dict[str, Dict[str, Union[str, float, int]]]]:
+    def convert_to_elasticsearch(
+        self,
+    ) -> Dict[str, Dict[str, Dict[str, Union[str, float, int]]]]:
         if isinstance(self.comparison_value, list):
             raise ValueError("Comparison value for '$gte' operation must not be a list.")
         return {"range": {self.field_name: {"gte": self.comparison_value}}}
 
     def convert_to_sql(self, meta_document_orm):
         return select([meta_document_orm.document_id]).where(
-            meta_document_orm.name == self.field_name, meta_document_orm.value >= self.comparison_value
+            meta_document_orm.name == self.field_name,
+            meta_document_orm.value >= self.comparison_value,
         )
 
     def convert_to_weaviate(self) -> Dict[str, Union[List[str], str, float, int]]:
         comp_value_type, comp_value = self._get_weaviate_datatype()
         if isinstance(comp_value, list):
             raise ValueError("Comparison value for '$gte' operation must not be a list.")
-        return {"path": [self.field_name], "operator": "GreaterThanEqual", comp_value_type: comp_value}
+        return {
+            "path": [self.field_name],
+            "operator": "GreaterThanEqual",
+            comp_value_type: comp_value,
+        }
 
     def convert_to_pinecone(self) -> Dict[str, Dict[str, Union[float, int]]]:
         if not isinstance(self.comparison_value, (float, int)):
@@ -638,21 +686,28 @@ class LtOperation(ComparisonOperation):
             return False
         return fields[self.field_name] < self.comparison_value
 
-    def convert_to_elasticsearch(self) -> Dict[str, Dict[str, Dict[str, Union[str, float, int]]]]:
+    def convert_to_elasticsearch(
+        self,
+    ) -> Dict[str, Dict[str, Dict[str, Union[str, float, int]]]]:
         if isinstance(self.comparison_value, list):
             raise ValueError("Comparison value for '$lt' operation must not be a list.")
         return {"range": {self.field_name: {"lt": self.comparison_value}}}
 
     def convert_to_sql(self, meta_document_orm):
         return select([meta_document_orm.document_id]).where(
-            meta_document_orm.name == self.field_name, meta_document_orm.value < self.comparison_value
+            meta_document_orm.name == self.field_name,
+            meta_document_orm.value < self.comparison_value,
         )
 
     def convert_to_weaviate(self) -> Dict[str, Union[List[str], str, float, int]]:
         comp_value_type, comp_value = self._get_weaviate_datatype()
         if isinstance(comp_value, list):
             raise ValueError("Comparison value for '$lt' operation must not be a list.")
-        return {"path": [self.field_name], "operator": "LessThan", comp_value_type: comp_value}
+        return {
+            "path": [self.field_name],
+            "operator": "LessThan",
+            comp_value_type: comp_value,
+        }
 
     def convert_to_pinecone(self) -> Dict[str, Dict[str, Union[float, int]]]:
         if not isinstance(self.comparison_value, (float, int)):
@@ -673,21 +728,28 @@ class LteOperation(ComparisonOperation):
             return False
         return fields[self.field_name] <= self.comparison_value
 
-    def convert_to_elasticsearch(self) -> Dict[str, Dict[str, Dict[str, Union[str, float, int]]]]:
+    def convert_to_elasticsearch(
+        self,
+    ) -> Dict[str, Dict[str, Dict[str, Union[str, float, int]]]]:
         if isinstance(self.comparison_value, list):
             raise ValueError("Comparison value for '$lte' operation must not be a list.")
         return {"range": {self.field_name: {"lte": self.comparison_value}}}
 
     def convert_to_sql(self, meta_document_orm):
         return select([meta_document_orm.document_id]).where(
-            meta_document_orm.name == self.field_name, meta_document_orm.value <= self.comparison_value
+            meta_document_orm.name == self.field_name,
+            meta_document_orm.value <= self.comparison_value,
         )
 
     def convert_to_weaviate(self) -> Dict[str, Union[List[str], str, float, int]]:
         comp_value_type, comp_value = self._get_weaviate_datatype()
         if isinstance(comp_value, list):
             raise ValueError("Comparison value for '$lte' operation must not be a list.")
-        return {"path": [self.field_name], "operator": "LessThanEqual", comp_value_type: comp_value}
+        return {
+            "path": [self.field_name],
+            "operator": "LessThanEqual",
+            comp_value_type: comp_value,
+        }
 
     def convert_to_pinecone(self) -> Dict[str, Dict[str, Union[float, int]]]:
         if not isinstance(self.comparison_value, (float, int)):

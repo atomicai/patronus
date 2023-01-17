@@ -88,7 +88,7 @@ class WBLogger(ILogger):
             self.experiment.log(metrics, step=(step + self.offset_step) if step is not None else None)
         elif step is not None:
 
-            self.experiment.log({**metrics, 'x': step + self.offset_step}, sync=False, **kwargs)
+            self.experiment.log({**metrics, "x": step + self.offset_step}, sync=False, **kwargs)
         else:
             self.experiment.log(metrics)
 

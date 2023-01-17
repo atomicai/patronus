@@ -27,7 +27,7 @@ def trycatch(func):
         try:
             func(*args, **kwargs)
         except Exception as e:
-            logging.exception('Exception occurred: [{}]'.format(e))
+            logging.exception("Exception occurred: [{}]".format(e))
 
     return wrapper
 
@@ -59,7 +59,7 @@ def timer(func):
         start_time = time()
         func(*args, **kwargs)
         end_time = time()
-        logging.info('Time taken by the function is [{time}] sec'.format(func=func, time=end_time - start_time))
+        logging.info("Time taken by the function is [{time}] sec".format(func=func, time=end_time - start_time))
 
     return wrapper
 
@@ -94,11 +94,14 @@ def singleton(cls):
 
     @functools.wraps(cls)
     def wrapper(*args, **kwargs):
-        if cls in previous_instances and previous_instances.get(cls, None).get('args') == (args, kwargs):
-            return previous_instances[cls].get('instance')
+        if cls in previous_instances and previous_instances.get(cls, None).get("args") == (args, kwargs):
+            return previous_instances[cls].get("instance")
         else:
-            previous_instances[cls] = {'args': (args, kwargs), 'instance': cls(*args, **kwargs)}
-            return previous_instances[cls].get('instance')
+            previous_instances[cls] = {
+                "args": (args, kwargs),
+                "instance": cls(*args, **kwargs),
+            }
+            return previous_instances[cls].get("instance")
 
     return wrapper
 
@@ -132,7 +135,7 @@ def run_in_thread(func):
         import threading
 
         threading.Thread(target=func, args=(args, kwargs)).start()
-        logging.info('Thread started for function {}'.format(func))
+        logging.info("Thread started for function {}".format(func))
 
     return wrapper
 
@@ -163,7 +166,7 @@ def create_n_threads(thread_count=1):
 
             for i in range(thread_count):
                 threading.Thread(target=func, args=(args, kwargs)).start()
-                logging.info('Thread started for function {}'.format(func))
+                logging.info("Thread started for function {}".format(func))
 
         return wrapper
 

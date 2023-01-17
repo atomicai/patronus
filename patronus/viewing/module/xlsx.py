@@ -42,9 +42,26 @@ class IMap(dict):
 
 class IFormat(IMap):
 
-    pallete = ["#54bebe", "#76c8c8", "#98d1d1", "#badbdb", "#dedad2", "#e4bcad", "#df979e", "#d7658b", "#c80064"]
+    pallete = [
+        "#54bebe",
+        "#76c8c8",
+        "#98d1d1",
+        "#badbdb",
+        "#dedad2",
+        "#e4bcad",
+        "#df979e",
+        "#d7658b",
+        "#c80064",
+    ]
 
-    _headify = {'bold': True, 'text_wrap': True, 'valign': 'vcenter', 'align': 'center', 'fg_color': '#D7E4BC', 'border': 1}
+    _headify = {
+        "bold": True,
+        "text_wrap": True,
+        "valign": "vcenter",
+        "align": "center",
+        "fg_color": "#D7E4BC",
+        "border": 1,
+    }
 
     _formify = {
         "fg_color": "#99badd",
@@ -57,23 +74,35 @@ class IFormat(IMap):
     }
 
     _purify = {
-        'align': 'center',
-        'valign': 'vcenter',
-        'fg_color': '#D7E4BC',
+        "align": "center",
+        "valign": "vcenter",
+        "fg_color": "#D7E4BC",
         "font_name": "Lucida Grande",
         "border": 1,
     }
 
     _centrify = {
-        'align': 'center',
-        'valign': 'vcenter',
+        "align": "center",
+        "valign": "vcenter",
         "font_name": "Lucida Grande",
         "border": 1,
     }
 
-    _signify = {"align": "center", "valign": "vcenter", "font_name": "Lucida Grande", "border": 1, "bold": True}
+    _signify = {
+        "align": "center",
+        "valign": "vcenter",
+        "font_name": "Lucida Grande",
+        "border": 1,
+        "bold": True,
+    }
 
-    _italify = {"align": "center", "valign": "vcenter", "font_name": "Lucida Grande", "bord": 1, "italic": True}
+    _italify = {
+        "align": "center",
+        "valign": "vcenter",
+        "font_name": "Lucida Grande",
+        "bord": 1,
+        "italic": True,
+    }
 
     def __init__(self, pallete: List[str] = None):
         if pallete is None:

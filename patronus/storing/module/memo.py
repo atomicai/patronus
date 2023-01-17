@@ -99,7 +99,10 @@ class MemoDocStore(BaseDocStore):
         return {self.embedding_field: "embedding"}
 
     def get_document_by_id(
-        self, _id: str, index: Optional[str] = None, headers: Optional[Dict[str, str]] = None
+        self,
+        _id: str,
+        index: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
     ) -> Optional[Document]:
         """
         Fetch a document by specifying its text id string.
@@ -226,7 +229,10 @@ class MemoDocStore(BaseDocStore):
             raise NotImplementedError("InMemoryDocumentStore does not support headers.")
 
         result = self.get_all_documents_generator(
-            index=index, filters=filters, return_embedding=return_embedding, batch_size=batch_size
+            index=index,
+            filters=filters,
+            return_embedding=return_embedding,
+            batch_size=batch_size,
         )
         documents = list(result)
         return documents

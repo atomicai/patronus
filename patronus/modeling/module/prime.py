@@ -22,7 +22,14 @@ class BM25Okapi(ISFI, IRI):
     __slots__ = ("corpus_size", "k1", "b", "store", "b", "avgdl", "epsilon", "idf")
 
     def __init__(
-        self, processor, index: str = "document", k1=1.5, b=0.75, epsilon=0.25, max_cpu: int = None, document_store=None
+        self,
+        processor,
+        index: str = "document",
+        k1=1.5,
+        b=0.75,
+        epsilon=0.25,
+        max_cpu: int = None,
+        document_store=None,
     ):
         super(BM25Okapi, self).__init__()
         self.corpus_size = 0
@@ -59,9 +66,20 @@ class BM25Okapi(ISFI, IRI):
             ):  # TODO: this assumes paragraphs are separated by "\n\n". Can be switched to paragraph tokenizer.
                 if not p.strip():  # skip empty paragraphs
                     continue
-                paragraphs.append(Paragraph(document_id=doc.id, paragraph_id=p_id, content=(p,), meta=doc.meta))
+                paragraphs.append(
+                    Paragraph(
+                        document_id=doc.id,
+                        paragraph_id=p_id,
+                        content=(p,),
+                        meta=doc.meta,
+                    )
+                )
                 p_id += 1
-        logger.info("Found %s candidate paragraphs from %s docs in DB", len(paragraphs), len(documents))
+        logger.info(
+            "Found %s candidate paragraphs from %s docs in DB",
+            len(paragraphs),
+            len(documents),
+        )
         return paragraphs
 
     def _initialize(self, corpus):
@@ -175,7 +193,16 @@ class BM25L(BM25Okapi):
 
     __slots__ = ("corpus_size", "k1", "b", "doc_freqs", "b", "avgdl", "delta")
 
-    def __init__(self, processor, index: str = "document", k1=1.5, delta=0.5, b=0.75, epsilon=0.25, max_cpu: int = None):
+    def __init__(
+        self,
+        processor,
+        index: str = "document",
+        k1=1.5,
+        delta=0.5,
+        b=0.75,
+        epsilon=0.25,
+        max_cpu: int = None,
+    ):
         super(BM25L, self).__init__(processor, index=index, k1=k1, b=b, epsilon=epsilon, max_cpu=max_cpu)
 
         self.delta = delta

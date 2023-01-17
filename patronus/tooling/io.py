@@ -70,7 +70,12 @@ def get_data(
         elif ext in (".tsv", ".csv"):
             if engine == "pandas":
                 df = pd.read_csv(
-                    db_filepath, encoding=encoding, usecols=columns_needed, skipinitialspace=True, sep=sep, **kwargs
+                    db_filepath,
+                    encoding=encoding,
+                    usecols=columns_needed,
+                    skipinitialspace=True,
+                    sep=sep,
+                    **kwargs,
                 )
             else:
                 df = pd.read_csv(db_filepath, encoding=encoding, sep=sep)
@@ -135,14 +140,17 @@ def save_data(
 
     db_filepath = data_dir / (db_filename + ext)
 
-    assert ext in (".json", ".csv"), f"Extension \"{ext}\" is not supported yet. Use \".json\" or \".csv\""
+    assert ext in (
+        ".json",
+        ".csv",
+    ), f'Extension "{ext}" is not supported yet. Use ".json" or ".csv"'
     if ext == ".json":
         with open(str(db_filepath), "w", encoding="utf-8-sig") as j_ptr:
             simplejson.dump(data, j_ptr, indent=4, ensure_ascii=False, ignore_nan=True)
     elif ext == ".csv":
         pd.DataFrame(data, columns=db_field_or_cols).to_csv(db_filepath, index=False, encoding="utf-8-sig")
     else:
-        raise ValueError(f"Extension {ext} is not yet supported: Pick one of \".json\", \".csv\", \".xlsx\"")
+        raise ValueError(f'Extension {ext} is not yet supported: Pick one of ".json", ".csv", ".xlsx"')
 
 
 __all__ = ["get_data", "save_data", "chunkify"]

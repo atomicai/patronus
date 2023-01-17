@@ -51,10 +51,10 @@ def extract_top_n_words_per_topic(tf_idf, count, docs_per_topic, n=20):
 
 def extract_topic_sizes(df):
     topic_sizes = (
-        df.groupby(['Topic'])
+        df.groupby(["Topic"])
         .Doc.count()
         .reset_index()
-        .rename({"Topic": "Topic", "Doc": "Size"}, axis='columns')
+        .rename({"Topic": "Topic", "Doc": "Size"}, axis="columns")
         .sort_values("Size", ascending=False)
     )
     return topic_sizes
@@ -62,7 +62,7 @@ def extract_topic_sizes(df):
 
 def report_overall_topics(keywords: Dict, info: pd.DataFrame, filepath, plopics: Dict, topk: int = 5):
     name, count = [" | ".join(str(d).split("_")[1:]) for d in info["Name"]], list(info["Count"])
-    writer = pd.ExcelWriter(filepath, engine='xlsxwriter')
+    writer = pd.ExcelWriter(filepath, engine="xlsxwriter")
     wb = writer.book
     ws = wb.add_worksheet("index")
     f = IFormat()
@@ -90,9 +90,23 @@ def report_overall_topics(keywords: Dict, info: pd.DataFrame, filepath, plopics:
         # TODO: Merge range is inclusive!
         start_idx = 1 + topic_pos * topk
         # TODO: Merge range on topics
-        ws.merge_range(start_idx, 0, start_idx + topk - 1, 0, topic_name, wb.add_format(f.formify(pallete)))
+        ws.merge_range(
+            start_idx,
+            0,
+            start_idx + topk - 1,
+            0,
+            topic_name,
+            wb.add_format(f.formify(pallete)),
+        )
         # TODO: Merge range on topics
-        ws.merge_range(start_idx, 1, start_idx + topk - 1, 1, topic_count, wb.add_format(f._centrify))
+        ws.merge_range(
+            start_idx,
+            1,
+            start_idx + topk - 1,
+            1,
+            topic_count,
+            wb.add_format(f._centrify),
+        )
         for i, item in enumerate(keywords[topic_idx]):
             word, score = item
             ws.write(start_idx + i, 2, word, wb.add_format(f.purify(pallete)))
@@ -104,7 +118,7 @@ def report_overall_topics(keywords: Dict, info: pd.DataFrame, filepath, plopics:
 
 
 def report_overall_snapshot(query: str, docs: List[Dict], filepath):
-    writer = pd.ExcelWriter(filepath, engine='xlsxwriter')
+    writer = pd.ExcelWriter(filepath, engine="xlsxwriter")
     wb = writer.book
     ws = wb.add_worksheet("index")
     f = IFormat()
@@ -124,10 +138,22 @@ def report_overall_snapshot(query: str, docs: List[Dict], filepath):
     writer.save()
 
 
-def send_over_email(attachments: Union[str, Path], author: str, receivers: Union[str, List[str]], subject, message: str):
+def send_over_email(
+    attachments: Union[str, Path],
+    author: str,
+    receivers: Union[str, List[str]],
+    subject,
+    message: str,
+):
     receivers = [receivers] if isinstance(receivers, str) else receivers
     mail = Email()
-    mail.send(subject=subject, message=message, receivers=receivers, attachments=attachments, sender=author)
+    mail.send(
+        subject=subject,
+        message=message,
+        receivers=receivers,
+        attachments=attachments,
+        sender=author,
+    )
 
 
 __all__ = [

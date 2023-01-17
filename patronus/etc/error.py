@@ -12,7 +12,12 @@ class IError(Exception):
     The messages of errors that might contain user-specific information will not be sent, e.g., DocumentStoreError.
     """
 
-    def __init__(self, message: Optional[str] = None, docs_link: Optional[str] = None, send_message_in_event: bool = True):
+    def __init__(
+        self,
+        message: Optional[str] = None,
+        docs_link: Optional[str] = None,
+        send_message_in_event: bool = True,
+    ):
         super().__init__()
         if message:
             self.message = message
@@ -35,14 +40,22 @@ class IError(Exception):
 class ModelingError(IError):
     """Exception for issues raised by the modeling module"""
 
-    def __init__(self, message: Optional[str] = None, docs_link: Optional[str] = "https://haystack.deepset.ai/"):
+    def __init__(
+        self,
+        message: Optional[str] = None,
+        docs_link: Optional[str] = "https://haystack.deepset.ai/",
+    ):
         super().__init__(message=message, docs_link=docs_link)
 
 
 class PipelineError(IError):
     """Exception for issues raised within a pipeline"""
 
-    def __init__(self, message: Optional[str] = None, docs_link: Optional[str] = "https://haystack.deepset.ai/pipelines"):
+    def __init__(
+        self,
+        message: Optional[str] = None,
+        docs_link: Optional[str] = "https://haystack.deepset.ai/pipelines",
+    ):
         super().__init__(message=message, docs_link=docs_link)
 
 

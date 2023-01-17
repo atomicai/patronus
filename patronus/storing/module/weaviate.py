@@ -13,6 +13,7 @@ from tqdm import tqdm
 from weaviate import AuthClientPassword, client, gql
 
 from patronus.etc import Document
+
 # from haystack.document_store.base import get_batches_from_generator
 from patronus.processing import get_batches_from_generator
 from patronus.processing.module.filter import LogicalFilterClause
@@ -140,7 +141,11 @@ class WeaviateDocStore(BaseDocStore):
         weaviate_url = f"{host}:{port}"
         if username and password:
             secret = AuthClientPassword(username, password)
-            self.weaviate_client = client.Client(url=weaviate_url, auth_client_secret=secret, timeout_config=timeout_config)
+            self.weaviate_client = client.Client(
+                url=weaviate_url,
+                auth_client_secret=secret,
+                timeout_config=timeout_config,
+            )
         else:
             self.weaviate_client = client.Client(url=weaviate_url, timeout_config=timeout_config)
 
@@ -208,7 +213,11 @@ class WeaviateDocStore(BaseDocStore):
                         "invertedIndexConfig": {"cleanupIntervalSeconds": 60},
                         "vectorizer": "none",
                         "properties": [
-                            {"dataType": ["string"], "description": "Name Field", "name": self.name_field},
+                            {
+                                "dataType": ["string"],
+                                "description": "Name Field",
+                                "name": self.name_field,
+                            },
                             {
                                 "dataType": ["text"],
                                 "description": "Document Content (e.g. the text)",
@@ -320,7 +329,10 @@ class WeaviateDocStore(BaseDocStore):
         return {self.content_field: "content", self.embedding_field: "embedding"}
 
     def get_document_by_id(
-        self, id: str, index: Optional[str] = None, headers: Optional[Dict[str, str]] = None
+        self,
+        id: str,
+        index: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
     ) -> Optional[Document]:
         """Fetch a document by specifying its uuid string"""
         if headers:
@@ -408,14 +420,23 @@ class WeaviateDocStore(BaseDocStore):
 
         return cur_properties
 
-    def _update_schema(self, new_prop: str, property_value: Union[List, str, int, float, bool], index: Optional[str] = None):
+    def _update_schema(
+        self,
+        new_prop: str,
+        property_value: Union[List, str, int, float, bool],
+        index: Optional[str] = None,
+    ):
         """
         Updates the schema with a new property.
         """
         index = self._sanitize_index_name(index) or self.index
         data_type = self._get_weaviate_type_of_value(property_value)
 
-        property_dict = {"dataType": [data_type], "description": f"dynamic property {new_prop}", "name": new_prop}
+        property_dict = {
+            "dataType": [data_type],
+            "description": f"dynamic property {new_prop}",
+            "name": new_prop,
+        }
         self.weaviate_client.schema.property.create(index, property_dict)
 
     @staticmethod
@@ -510,7 +531,9 @@ class WeaviateDocStore(BaseDocStore):
             do.id = self._sanitize_id(id=do.id, index=index)
 
         document_objects = self._handle_duplicate_documents(
-            documents=document_objects, index=index, duplicate_documents=duplicate_documents
+            documents=document_objects,
+            index=index,
+            duplicate_documents=duplicate_documents,
         )
 
         # Weaviate requires that documents contain a vector in order to be indexed. These lines add a
@@ -580,7 +603,12 @@ class WeaviateDocStore(BaseDocStore):
                 progress_bar.update(batch_size)
         progress_bar.close()
 
-    def update_document_meta(self, id: str, meta: Dict[str, Union[List, str, int, float, bool]], index: Optional[str] = None):
+    def update_document_meta(
+        self,
+        id: str,
+        meta: Dict[str, Union[List, str, int, float, bool]],
+        index: Optional[str] = None,
+    ):
         """
         Update the metadata dictionary of a document by specifying its string id.
         Overwrites only the specified fields, the unspecified ones remain unchanged.
@@ -606,7 +634,9 @@ class WeaviateDocStore(BaseDocStore):
         self.weaviate_client.data_object.update(meta, class_name=index, uuid=id)
 
     def get_embedding_count(
-        self, filters: Optional[Dict[str, Union[Dict, List, str, int, float, bool]]] = None, index: Optional[str] = None
+        self,
+        filters: Optional[Dict[str, Union[Dict, List, str, int, float, bool]]] = None,
+        index: Optional[str] = None,
     ) -> int:
         """
         Return the number of embeddings in the document store, which is the same as the number of documents since
@@ -708,7 +738,10 @@ class WeaviateDocStore(BaseDocStore):
 
         index = self._sanitize_index_name(index) or self.index
         result = self.get_all_documents_generator(
-            index=index, filters=filters, return_embedding=return_embedding, batch_size=batch_size
+            index=index,
+            filters=filters,
+            return_embedding=return_embedding,
+            batch_size=batch_size,
         )
         documents = list(result)
         return documents
@@ -1010,7 +1043,11 @@ class WeaviateDocStore(BaseDocStore):
 
             # BM25 retrieval without filtering
             gql_query = (
-                gql.get.GetBuilder(class_name=index, properties=properties, connection=self.weaviate_client)
+                gql.get.GetBuilder(
+                    class_name=index,
+                    properties=properties,
+                    connection=self.weaviate_client,
+                )
                 .with_near_vector({"vector": [0, 0]})
                 .with_limit(top_k)
                 .build()
@@ -1243,7 +1280,9 @@ class WeaviateDocStore(BaseDocStore):
             document_batch = [self._convert_weaviate_result_to_document(hit, return_embedding=False) for hit in result_batch]
             embeddings = retriever.embed_documents(document_batch)
             self._validate_embeddings_shape(
-                embeddings=embeddings, num_documents=len(document_batch), embedding_dim=self.embedding_dim
+                embeddings=embeddings,
+                num_documents=len(document_batch),
+                embedding_dim=self.embedding_dim,
             )
 
             if self.similarity == "cosine":

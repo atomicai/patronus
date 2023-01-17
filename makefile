@@ -18,14 +18,14 @@ setup-pre-commit:
 	pre-commit run --all-files
 
 format:
-	isort ${ISORT_FLAGS} --check-only --diff ${NAME} test
-	black ${BLACK_FLAGS} --check --diff ${NAME} test
-	autoflake ${FLAKE_FLAGS} --in-place ${NAME} test
+	isort ${ISORT_FLAGS} --check-only --diff ${NAME} patronus test
+	black ${BLACK_FLAGS} --check --diff ${NAME} patronus test
+	autoflake ${FLAKE_FLAGS} --in-place ${NAME} patronus test
 
 format-fix:
-	isort ${ISORT_FLAGS} ${NAME} test
-	black ${BLACK_FLAGS} ${NAME} test
-	autoflake ${FLAKE_FLAGS} ${NAME} test
+	isort ${ISORT_FLAGS} ${NAME} patronus test
+	black ${BLACK_FLAGS} ${NAME} patronus test
+	autoflake ${FLAKE_FLAGS} ${NAME} patronus test
 
 run:
 	flask run --host=0.0.0.0 --port=7777
