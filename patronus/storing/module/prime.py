@@ -329,7 +329,7 @@ class SQLDocStore(BaseDocStore):
 
         for row in meta_query.all():
             documents_map[row.document_id].meta[row.name] = row.value
-        return
+        return documents_map
 
     def get_all_labels(self, index=None, filters: Optional[FilterType] = None, headers: Optional[Dict[str, str]] = None):
         """
