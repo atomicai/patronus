@@ -2,6 +2,7 @@ import collections
 import json
 import logging
 import os
+import time
 import uuid
 from pathlib import Path
 from pprint import pprint as pp
@@ -21,6 +22,7 @@ from werkzeug.utils import secure_filename
 
 from patronus.modeling.module import BM25L
 from patronus.processing import IStopper
+from patronus.storing.module import SQLDocStore
 from patronus.tdk import pipe
 from patronus.tooling import get_data, initialize_device_settings
 from patronus.viewing.module import plotly_wordcloud
@@ -153,7 +155,7 @@ def view_timeseries():
 
     dfr = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")  # raw without cleaning, etc..
     # <--->
-    dfs = pipe.pipe_polar(dfr, txt_col_name=session["text"], fn=stopper)  # dataframe "stopped"
+    dfs = pipe.pipe_polar(dfr, txt_col_name=session["text"], fn=stopper)  # dataframe to which `IStopper` had been applied
     # Maybe there is a processed file already?
     # df = next(get_data(data_dir=cache_dir / uid, filename=fname.stem, ext=fname.suffix))
     # docs, times = df["text"].tolist(), df["datetime"].tolist()
@@ -214,16 +216,56 @@ def view_timeseries():
             author="itarlinskiy@yandex.ru",
         )
     fig = topmodel.visualize_topics_over_time(topics_over_time, top_n_topics=10)
+
     response = [
-        {"figure": json.loads(plotly.io.to_json(fig, pretty=True))},
         {
             "figure": json.loads(plotly.io.to_json(fig, pretty=True)),
-            "keywords": [{"data": ["один", "два", "три"], "title": "TOPIC title", "url": "viewing_keywording"}],
+            "lazy_figure_api": [
+                {"api": "viewing_timeseries_examples", "title": "Representative documents per topic"},
+                {"api": "viewing_timeseries_plopics", "title": "Collinearity between topics"},
+            ],
         },
-        {"figure": json.loads(plotly.io.to_json(fig, pretty=True))},
+        {
+            "figure": json.loads(plotly.io.to_json(fig, pretty=True)),
+            "keywords": [
+                {
+                    "data": [f"{str(i)}", f"{str(i + 1)}", f"{str(i + 2)}"],
+                    "title": f"title_{str(i)}",
+                    "api": "viewing_keywording",
+                }
+                for i in range(15)
+            ],
+        },
     ]
     return jsonify(response)
     # return plotly.io.to_json(fig, pretty=True)
+
+
+def view_timeseries_examples():
+    time.sleep(4)
+    uid = str(session["uid"])
+    filename = Path(session["filename"])
+    # If the
+    dfr = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")
+
+    dfs = pipe.pipe_polar(dfr, txt_col_name=session["text"], fn=stopper)
+    flow = list(dfs.select("text"))[0]
+    text = " ".join(flow)
+    fig = plotly_wordcloud(text, scale=1)
+
+    return plotly.io.to_json(fig, pretty=True)
+
+
+def view_timeseries_plopics():
+    uid = str(session["uid"])
+    filename = Path(session["filename"])
+    # If the
+    dfr = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")
+    dfs = pipe.pipe_polar(dfr, txt_col_name=session["text"], fn=stopper)
+    flow = list(dfs.select("text"))[0]
+    text = " ".join(flow)
+    fig = plotly_wordcloud(text, scale=1)
+    return plotly.io.to_json(fig, pretty=True)
 
 
 def view_clustering():
