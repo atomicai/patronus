@@ -28,6 +28,10 @@ def pipe_polar(df, txt_col_name, fn):
     return df
 
 
+def extract_keywords(content: str, query: str):
+    pass
+
+
 def c_tf_idf(documents, m, ngram_range=(1, 1), stopwords: Iterable = None):
     count = CountVectorizer(ngram_range=ngram_range, stop_words="english").fit(documents)
     t = count.transform(documents).toarray()  # num_docs x different_tokens
