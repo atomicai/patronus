@@ -8,3 +8,16 @@ Flask-Session==0.4.0
 simplejson==3.18.1
 kombu==5.2.4
 bertopic==0.13.0
+polars==0.15.18
+pyarrow==11.0.0
+random-name==0.1.1
+icecream==2.1.3
+pathos==0.3.0
+dacite==1.8.0
+mmh3==3.0.0
+nnsplit==0.2.2
+SQLAlchemy==2.0.0
+wordcloud==1.8.2.2
+python-dotenv==0.21.1
+XlsxWriter==3.0.7
+tensorboard
