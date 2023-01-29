@@ -46,3 +46,4 @@ clean:
 	rm -rf wandb
 	find . -name ".DS_Store" -print -delete
 	rm -rf .cache
+	pyclean .
