@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union
+from typing import List, Union
 
 from patronus.processing.mask import IPath
 from patronus.tooling import chunkify
@@ -14,10 +14,10 @@ class IStopper:
             for word in chunkify(fin, sep="\n"):
                 self.store.add(word.strip())
 
-    def __call__(self, x):
-
-        x = x.lower() if self.do_lower_case else x
-        response = " ".join(w for w in x.split(" ") if w not in self.store)
+    def __call__(self, x, seps: List[str]):
+        response = x.strip().lower() if self.do_lower_case else x.strip()
+        for sep in seps:
+            response = " ".join(w for w in response.split(sep) if w not in self.store)
         return response
 
 
