@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 from pprint import pprint as pp
 
+import numpy as np
 import plotly
 import polars as pl
 import pyarrow.parquet as pq
@@ -40,10 +41,7 @@ processor = lambda x: x.lower().strip().split(" ")
 model = SentenceTransformer("paraphrase-multilingual-mpnet-base-v2", device=devices[0])
 store = collections.defaultdict()
 topmodel = BERTopic(
-    language="multilingual",
-    n_gram_range=(1, 2),
-    min_topic_size=7,
-    umap_model=UMAP(random_state=42),
+    language="multilingual", n_gram_range=(1, 2), min_topic_size=7, umap_model=UMAP(random_state=42), embedding_model=model
 )
 stopper = IStopper()
 
@@ -53,7 +51,7 @@ def search():
     data = json.loads(data)
     # Placeholder to retrieve all the document(s) from the indexing phaze
     ic(data)
-    query = data["text"]
+    query = data["text"].strip().lower()
     session["query"] = query
     uid = str(session["uid"])
     response = None
@@ -62,8 +60,7 @@ def search():
     except:
         return jsonify({"docs": []})
     else:
-        response = [{"text": d.meta["raw"], "score": 0.5, "timestamp": d.meta["timestamp"]} for d in response]
-    # highlight: [{"lo": 0, "hi": 5}, {"lo": 8, "hi": 13}, {"lo": 124, "hi": 1241}]
+        response = pipe.pipe_paint_docs(docs=response, query=query)
     return jsonify({"docs": response})
 
 
@@ -97,6 +94,13 @@ def upload():
 
 
 def iload():
+    """
+    This part of the flow validates the file for corruption,
+
+    performs the conversion to the .parquet
+
+    sets the `email` | `text` | `date` columns
+    """
     data = request.get_json()
     pp("ILOADing ... \n")
     pp(data)
@@ -138,10 +142,13 @@ def download(filename):
 
 
 def view():
+    # TODO:
+    # Serves as a proxy...
+    # This will check the user's subscription as well as meta information
+    # For now, it is dummy intermediate route that returns all the available route(s)
     return jsonify(
         [
             {"figure": "viewing_timeseries", "title": "TimeSeries", "premium": True},
-            {"figure": "viewing_clustering", "title": "Clustering", "premium": True},
         ]
     )
 
@@ -155,7 +162,9 @@ def view_timeseries():
 
     dfr = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")  # raw without cleaning, etc..
     # <--->
-    dfs = pipe.pipe_polar(dfr, txt_col_name=session["text"], fn=stopper)  # dataframe to which `IStopper` had been applied
+    dfs = pipe.pipe_polar(
+        dfr, txt_col_name=session["text"], fn=stopper, seps=[":", " "]
+    )  # dataframe to which `IStopper` had been applied
     # Maybe there is a processed file already?
     # df = next(get_data(data_dir=cache_dir / uid, filename=fname.stem, ext=fname.suffix))
     # docs, times = df["text"].tolist(), df["datetime"].tolist()
@@ -164,14 +173,14 @@ def view_timeseries():
         [str(d) for d in list(dfs.select("datetime"))[0]],
         [str(d) for d in list(dfr.select("text"))[0]],
     )
+    # TODO: Move this wrapping functionality to the couchDB to make it async friendly
     engine = BM25L(processor=processor)
     engine.index([{"content": d, "timestamp": t, "raw": r} for d, t, r in zip(docs, times, raws)])
     store[uid] = engine
     # <--->
 
-    embeddings = model.encode(docs, show_progress_bar=True, device=devices[0])
-    topics, probs = topmodel.fit_transform(docs, embeddings=embeddings)
-    # Here is the ideal place to visualize count and save the file to return it to client
+    # embeddings = model.encode(docs, show_progress_bar=True, device=devices[0])
+    topics, probs = topmodel.fit_transform(docs, embeddings=None)  # we use model under the hood
     info = topmodel.get_topic_info()
     docs_per_topic = (
         pl.DataFrame({"Doc": docs, "Topic": topics, "Id": range(len(docs))})
@@ -217,55 +226,67 @@ def view_timeseries():
         )
     fig = topmodel.visualize_topics_over_time(topics_over_time, top_n_topics=10)
 
+    # TODO:
+    session["plopics"] = topmodel.visualize_topics(width=1250, height=450)
+    session["examples"] = topmodel.visualize_documents(raws, width=1250, height=450)
+    session["tropics"] = topmodel.visualize_barchart(width=312.5, height=225, title="Topic Word Scores")
+
+    # TODO:
+    # Первый график всегда будет eager и ему тоже нужен будет response_type: docs
+    # Остальные графики lazy после первого (первый тоже eager, т.к. клиент его должен сразу видеть)
+    # Их
     response = [
         {
-            "figure": json.loads(plotly.io.to_json(fig, pretty=True)),
+            "figure": json.loads(plotly.io.to_json(plotly_wordcloud(" ".join(docs), scale=1), pretty=True)),
             "lazy_figure_api": [
-                {"api": "viewing_timeseries_examples", "title": "Representative documents per topic"},
-                {"api": "viewing_timeseries_plopics", "title": "Collinearity between topics"},
+                {"api": "viewing_timeseries_examples", "title": "Representative documents per topic", "response_type": "docs"},
+                {
+                    "api": "viewing_timeseries_plopics",
+                    "title": "Collinearity between topics",
+                },
+                {"api": "viewing_timeseries_tropics", "title": "Keyword ranking per topics"},
             ],
         },
         {
             "figure": json.loads(plotly.io.to_json(fig, pretty=True)),
-            "keywords": [
-                {
-                    "data": [f"{str(i)}", f"{str(i + 1)}", f"{str(i + 2)}"],
-                    "title": f"title_{str(i)}",
-                    "api": "viewing_keywording",
-                }
-                for i in range(15)
-            ],
         },
     ]
     return jsonify(response)
-    # return plotly.io.to_json(fig, pretty=True)
 
 
 def view_timeseries_examples():
-    time.sleep(4)
-    uid = str(session["uid"])
-    filename = Path(session["filename"])
-    # If the
-    dfr = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")
+    return plotly.io.to_json(session["examples"], pretty=True)
 
-    dfs = pipe.pipe_polar(dfr, txt_col_name=session["text"], fn=stopper)
-    flow = list(dfs.select("text"))[0]
-    text = " ".join(flow)
-    fig = plotly_wordcloud(text, scale=1)
 
-    return plotly.io.to_json(fig, pretty=True)
+def view_timeseries_tropics():
+    return plotly.io.to_json(session["tropics"], pretty=True)
 
 
 def view_timeseries_plopics():
+    return plotly.io.to_json(session["plopics"], pretty=True)
+
+
+def view_representation():
     uid = str(session["uid"])
-    filename = Path(session["filename"])
-    # If the
-    dfr = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")
-    dfs = pipe.pipe_polar(dfr, txt_col_name=session["text"], fn=stopper)
-    flow = list(dfs.select("text"))[0]
-    text = " ".join(flow)
-    fig = plotly_wordcloud(text, scale=1)
-    return plotly.io.to_json(fig, pretty=True)
+    data = request.get_data(parse_form_data=True).decode("utf-8-sig")
+    data = json.loads(data)
+    # Placeholder to retrieve all the document(s) from the indexing phaze
+    # {"api": "viewing_timeseries_examples", "topic_name": "..."}
+    # TODO:
+    query = data["topic_name"].strip().lower()
+    api = data["api"].strip().lower()
+    ic(api)
+    if api != "default":  # TODO: default больше не будет
+        return jsonify({"docs": []})
+    engine = store[uid]
+    response = None
+    try:
+        response = engine.retrieve_top_k(processor(query), top_k=100)
+    except:
+        return jsonify({"docs": []})
+
+    response = pipe.pipe_paint_docs(docs=response, query=query)
+    return jsonify({"docs": response})
 
 
 def view_clustering():
@@ -273,7 +294,7 @@ def view_clustering():
     filename = Path(session["filename"])
     # If the
     dfr = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")
-    dfs = pipe.pipe_polar(dfr, txt_col_name=session["text"], fn=stopper)
+    dfs = pipe.pipe_polar(dfr, txt_col_name=session["text"], fn=stopper, seps=[":", " "])
     flow = list(dfs.select("text"))[0]
     text = " ".join(flow)
     fig = plotly_wordcloud(text, scale=1)

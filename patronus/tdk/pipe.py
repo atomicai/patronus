@@ -1,26 +1,29 @@
 from functools import partial
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Union
+from typing import Callable, Dict, Iterable, List, Type, Union
 
 import numpy as np
 import pandas as pd
 import polars as pl
 from sklearn.feature_extraction.text import CountVectorizer
 
+from patronus.etc import Document
 from patronus.tooling import Email
 from patronus.viewing.module import IFormat
 
 
-def _process_polar(chunk: Dict, txt_col_name: str, fn: Callable):
+def _process_polar(chunk: Dict, txt_col_name: str, fn: Callable, seps: List[str]):
     x = chunk[txt_col_name]
-    y = fn(x)
+    y = fn(x, seps=seps)
     return y
 
 
-def pipe_polar(df, txt_col_name, fn):
+def pipe_polar(df, txt_col_name, fn, seps):
     df = df.select(
         [
-            pl.struct(list(df.columns)).alias(txt_col_name).apply(partial(_process_polar, txt_col_name=txt_col_name, fn=fn)),
+            pl.struct(list(df.columns))
+            .alias(txt_col_name)
+            .apply(partial(_process_polar, txt_col_name=txt_col_name, fn=fn, seps=seps)),
             pl.exclude(txt_col_name),
         ]
     )
@@ -28,7 +31,29 @@ def pipe_polar(df, txt_col_name, fn):
     return df
 
 
+def pipe_paint_docs(docs: List[Union[str, Document]], query: str):
+    """
+    Take the sequence of textual documents and find all occurences of the `query` returning them in the form of
+    `{"lo": <offset_to_the_beginning>: "hi": <offset_to_the_end>}`
+    """
+    response = [{"text": d.meta["raw"], "score": 0.5, "timestamp": d.meta["timestamp"]} for d in docs]
+    for doc in response:
+        content = doc["text"].lower()
+        pos, l = 0, len(query)
+        posix = []
+        while pos != -1:
+            pos = content.find(query, pos)
+            if pos != -1:
+                posix.append({"lo": pos, "hi": pos + l - 1})
+                pos += l
+        doc["highlight"] = posix
+    return response
+
+
 def c_tf_idf(documents, m, ngram_range=(1, 1), stopwords: Iterable = None):
+    """
+    TODO: Make IStopper iterable and propagate here
+    """
     count = CountVectorizer(ngram_range=ngram_range, stop_words="english").fit(documents)
     t = count.transform(documents).toarray()  # num_docs x different_tokens
     w = t.sum(axis=1)  # (num_docs,) different tokens per document
@@ -158,6 +183,7 @@ def send_over_email(
 
 __all__ = [
     "pipe_polar",
+    "pipe_paint_docs",
     "extract_top_n_words_per_topic",
     "extract_topic_sizes",
     "report_overall_topics",

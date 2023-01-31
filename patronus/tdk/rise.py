@@ -32,7 +32,7 @@ dotenv.load_dotenv()
 
 top_k = int(os.environ.get("TOP_K", 5))
 index = os.environ.get("INDEX", "document")
-store = MemoDocStore(index=index)
+store = MemoDocStore(index=index)  # This will change to "as service"
 cache_dir = pathlib.Path(os.getcwd()) / ".cache"
 
 exchange = Exchange("media", "direct", durable=True)
@@ -69,5 +69,10 @@ app.add_url_rule("/viewing", methods=["GET"], view_func=prime.view)
 app.add_url_rule("/viewing_timeseries", methods=["POST"], view_func=prime.view_timeseries)
 app.add_url_rule("/viewing_timeseries_examples", methods=["POST"], view_func=prime.view_timeseries_examples)
 app.add_url_rule("/viewing_timeseries_plopics", methods=["POST"], view_func=prime.view_timeseries_plopics)
+app.add_url_rule("/viewing_timeseries_tropics", methods=["POST"], view_func=prime.view_timeseries_tropics)
 app.add_url_rule("/viewing_clustering", methods=["POST"], view_func=prime.view_clustering)
+app.add_url_rule("/viewing_representation", methods=["POST"], view_func=prime.view_representation)
 app.add_url_rule("/snapshotting", methods=["POST"], view_func=prime.snapshot)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=7777)
