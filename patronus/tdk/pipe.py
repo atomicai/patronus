@@ -1,6 +1,6 @@
 from functools import partial
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Type, Union
+from typing import Callable, Dict, Iterable, List, Union
 
 import numpy as np
 import pandas as pd
