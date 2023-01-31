@@ -17,7 +17,6 @@
 у
 еще
 она
-operator:
 их
 там
 вас
@@ -27,7 +26,6 @@ operator:
 вам
 пока
 пожалуйста
-client:
 c
 не
 вот
@@ -39,3 +37,13 @@ c
 он
 так
 по
+спасибо
+до
+client:
+client
+operator:
+operator
+query
+query:
+context
+context:
