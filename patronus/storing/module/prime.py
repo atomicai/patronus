@@ -1,7 +1,7 @@
 import itertools
 import json
 import logging
-from typing import Any, Dict, Generator, List, Optional, Union
+from typing import Dict, Generator, List, Optional, Union
 from uuid import uuid4
 
 import numpy as np
