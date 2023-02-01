@@ -5,6 +5,7 @@ from typing import Callable, Dict, Iterable, List, Union
 import numpy as np
 import pandas as pd
 import polars as pl
+import sklearn
 from sklearn.feature_extraction.text import CountVectorizer
 
 from patronus.etc import Document
@@ -66,7 +67,10 @@ def c_tf_idf(documents, m, ngram_range=(1, 1), stopwords: Iterable = None):
 
 
 def extract_top_n_words_per_topic(tf_idf, count, docs_per_topic, n=20):
-    words = count.get_feature_names()  # list of words : words[pos] == "451" => 451 occurs @ pos
+    if sklearn.__version__.startswith("1."):
+        words = count.get_feature_names_out()
+    else:
+        words = count.get_feature_names()
     labels = [str(d) for d in list(docs_per_topic.select(pl.col("Topic")))[0]]
     tf_idf_transposed = tf_idf.T
     indices = tf_idf_transposed.argsort()[:, -n:]
@@ -105,10 +109,12 @@ def report_overall_topics(keywords: Dict, info: pd.DataFrame, filepath, plopics:
 
     # --- TODO: Add coloring to the range cell(s)
 
+    offset = int(min(list(keywords.keys())))
+
     for topic_idx, top_words in keywords.items():
         pallete = next(f)
 
-        topic_pos = int(topic_idx) + 1  # (e.g. [-1, 0, 1, 2] -> [0, 1, 2, 3])
+        topic_pos = int(topic_idx) + offset * (-1)  # Tricky way to add (+1) if (-1) is present and (+0) otherwise
         topic_name, topic_count = name[topic_pos], count[topic_pos]
         # Join the cell(s)
         # Assuming there are K keywords per topic.
