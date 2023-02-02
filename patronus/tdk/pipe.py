@@ -50,6 +50,26 @@ def pipe_paint_docs(docs: List[Union[str, Document]], query: str):
         doc["highlight"] = posix
     return response
 
+    # len(highlight) * 2 <u></u>
+
+
+def pipe_prefix_docs(docs: List[Dict], prefix=None):
+    if prefix is None:
+        return docs
+    for document in docs:
+        doc = document["text"]
+        posix = []
+        for pre in prefix:
+            pos = 0
+            if pos != -1:
+                posix.append(pos)
+                pos += len(pre)
+        posix = sorted(posix)
+        for offset, (lo, hi) in enumerate(zip(posix[:-1], posix[1:])):
+            paragraph = doc[lo + offset : hi + offset]
+            doc = doc.replace(paragraph, paragraph + "\n")
+        document["text"] = doc
+
 
 def c_tf_idf(documents, m, ngram_range=(1, 1), stopwords: Iterable = None):
     """
@@ -67,10 +87,10 @@ def c_tf_idf(documents, m, ngram_range=(1, 1), stopwords: Iterable = None):
 
 
 def extract_top_n_words_per_topic(tf_idf, count, docs_per_topic, n=20):
-    if sklearn.__version__.startswith("1."):
-        words = count.get_feature_names_out()
-    else:
+    if sklearn.__version__.startswith("0."):
         words = count.get_feature_names()
+    else:
+        words = count.get_feature_names_out()
     labels = [str(d) for d in list(docs_per_topic.select(pl.col("Topic")))[0]]
     tf_idf_transposed = tf_idf.T
     indices = tf_idf_transposed.argsort()[:, -n:]
@@ -190,6 +210,7 @@ def send_over_email(
 __all__ = [
     "pipe_polar",
     "pipe_paint_docs",
+    "pipe_prefix_docs",
     "extract_top_n_words_per_topic",
     "extract_topic_sizes",
     "report_overall_topics",
