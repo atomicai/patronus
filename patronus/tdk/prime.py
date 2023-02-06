@@ -284,8 +284,7 @@ def view_representation():
     except:
         return jsonify({"docs": []})
 
-    response = pipe.pipe_paint_docs(docs=response, query=query)
-    response = pipe.pipe_prefix_docs(docs=response, prefix=["operator:", "client:"])
+    response = pipe.pipe_paint_docs(docs=response, querix=processor(query), prefix=["operator:", "client:"])
 
     return jsonify({"docs": response, "colorify": ["client:", "operator:"]})
 
