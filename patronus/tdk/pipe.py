@@ -49,7 +49,7 @@ def pipe_paint_docs(docs: List[Union[str, Document]], querix: List[str], prefix:
     for pref in prefix:
         kw.add_keyword(pref, "\n" + pref)
 
-    preview = {k: i for i, k in enumerate(kw.get_all_keywords().values())}  # PREfix VIEW
+    preview = {k: i + 1 for i, k in enumerate(kw.get_all_keywords().values())}  # PREfix VIEW
     kw.add_keywords_from_list(querix)
 
     for doc in response:
