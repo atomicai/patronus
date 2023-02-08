@@ -9,6 +9,7 @@ import sklearn
 from sklearn.feature_extraction.text import CountVectorizer
 
 from patronus.etc import Document
+from patronus.processing import KeywordProcessor
 from patronus.tooling import Email
 from patronus.viewing.module import IFormat
 
@@ -32,28 +33,54 @@ def pipe_polar(df, txt_col_name, fn, seps):
     return df
 
 
-def pipe_paint_docs(docs: List[Union[str, Document]], query: str):
+def pipe_paint_docs(docs: List[Union[str, Document]], querix: List[str], prefix: List[str] = None):
     """
-    Take the sequence of textual documents and find all occurences of the `query` returning them in the form of
-    `{"lo": <offset_to_the_beginning>: "hi": <offset_to_the_end>}`
+    This method performs two important function(s) for beautiful frontend rendering (with tabulation and newline(s) per each dialogue)
+    1. Take the sequence of textual documents and find all occurences of the `query` returning them in the form of
+    `{"lo": <offset_to_the_start>: "hi": <offset_to_the_end>}`
+    2. As well as
     """
     response = [{"text": d.meta["raw"], "score": 0.5, "timestamp": d.meta["timestamp"]} for d in docs]
+    kw = KeywordProcessor()
+    # Given response "<prefix_1:> some text <prefix_2:> some other text ... <prefix_k:>" we would like to perform the following action(s):
+    # 1. Before every <prefix_i:> insert the newline symbol "\n". This is required for beautiful rendering on the client side
+    # 2. For every "<prefix_i:> - calculate offset in terms of number of chars up to beginning as well as ending
+    # e.g. "hello world query:". For the "query:" prefix the response would be {"lo": 12, "hi": 18}
+    for pref in prefix:
+        kw.add_keyword(pref, "\n" + pref)
+
+    preview = {k: i for i, k in enumerate(kw.get_all_keywords().values())}  # PREfix VIEW
+    kw.add_keywords_from_list(querix)
+
     for doc in response:
-        content = doc["text"].lower()
-        pos, l = 0, len(query)
+        content = doc["text"].strip()
         posix = []
-        while pos != -1:
-            pos = content.find(query, pos)
-            if pos != -1:
-                posix.append({"lo": pos, "hi": pos + l - 1})
-                pos += l
+        chunk = []
+        offset: int = 0
+        occurence = kw.extract_keywords(content, span_info=True)
+        prefcount = 0
+        for step, hit in enumerate(occurence):
+            w, lo, hi = hit  # w would be have been added newline separator in the case of prefix
+            if w in preview:
+                prefcount += 1
+
+                posix.append({"lo": lo + prefcount, "hi": hi + prefcount, "color": preview[w]})
+                if lo > 0:
+                    sub = content[offset:lo]
+                    chunk.append(sub + "\n")
+
+                offset = lo
+            else:
+                posix.append({"lo": lo + prefcount, "hi": hi + prefcount})
         doc["highlight"] = posix
+        doc["text"] = kw.replace_keywords(content)
+
     return response
 
 
 def c_tf_idf(documents, m, ngram_range=(1, 1), stopwords: Iterable = None):
     """
-    TODO: Make IStopper iterable and propagate here
+    TODO: Make  iterable and propagate here
     """
     count = CountVectorizer(ngram_range=ngram_range, stop_words="english").fit(documents)
     t = count.transform(documents).toarray()  # num_docs x different_tokens
@@ -67,10 +94,10 @@ def c_tf_idf(documents, m, ngram_range=(1, 1), stopwords: Iterable = None):
 
 
 def extract_top_n_words_per_topic(tf_idf, count, docs_per_topic, n=20):
-    if sklearn.__version__.startswith("1."):
-        words = count.get_feature_names_out()
-    else:
+    if sklearn.__version__.startswith("0."):
         words = count.get_feature_names()
+    else:
+        words = count.get_feature_names_out()
     labels = [str(d) for d in list(docs_per_topic.select(pl.col("Topic")))[0]]
     tf_idf_transposed = tf_idf.T
     indices = tf_idf_transposed.argsort()[:, -n:]
@@ -190,6 +217,7 @@ def send_over_email(
 __all__ = [
     "pipe_polar",
     "pipe_paint_docs",
+    "pipe_prefix_docs",
     "extract_top_n_words_per_topic",
     "extract_topic_sizes",
     "report_overall_topics",
