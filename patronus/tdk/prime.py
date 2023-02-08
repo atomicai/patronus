@@ -286,7 +286,7 @@ def view_representation():
 
     response = pipe.pipe_paint_docs(docs=response, querix=processor(query), prefix=["operator:", "client:"])
 
-    return jsonify({"docs": response, "colorify": ["client:", "operator:"]})
+    return jsonify({"docs": response})
 
 
 def view_clustering():

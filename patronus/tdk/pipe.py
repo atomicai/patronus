@@ -9,6 +9,7 @@ import sklearn
 from sklearn.feature_extraction.text import CountVectorizer
 
 from patronus.etc import Document
+from patronus.processing import KeywordProcessor
 from patronus.tooling import Email
 from patronus.viewing.module import IFormat
 
@@ -34,88 +35,52 @@ def pipe_polar(df, txt_col_name, fn, seps):
 
 def pipe_paint_docs(docs: List[Union[str, Document]], querix: List[str], prefix: List[str] = None):
     """
-    Take the sequence of textual documents and find all occurences of the `query` returning them in the form of
-    `{"lo": <offset_to_the_beginning>: "hi": <offset_to_the_end>}`
+    This method performs two important function(s) for beautiful frontend rendering (with tabulation and newline(s) per each dialogue)
+    1. Take the sequence of textual documents and find all occurences of the `query` returning them in the form of
+    `{"lo": <offset_to_the_start>: "hi": <offset_to_the_end>}`
+    2. As well as
     """
     response = [{"text": d.meta["raw"], "score": 0.5, "timestamp": d.meta["timestamp"]} for d in docs]
+    kw = KeywordProcessor()
+    # Given response "<prefix_1:> some text <prefix_2:> some other text ... <prefix_k:>" we would like to perform the following action(s):
+    # 1. Before every <prefix_i:> insert the newline symbol "\n". This is required for beautiful rendering on the client side
+    # 2. For every "<prefix_i:> - calculate offset in terms of number of chars up to beginning as well as ending
+    # e.g. "hello world query:". For the "query:" prefix the response would be {"lo": 12, "hi": 18}
+    for pref in prefix:
+        kw.add_keyword(pref, "\n" + pref)
+
+    preview = {k: i for i, k in enumerate(kw.get_all_keywords().values())}  # PREfix VIEW
+    kw.add_keywords_from_list(querix)
 
     for doc in response:
+        content = doc["text"].strip()
         posix = []
-        content = doc["text"].lower()
-        offset = -1
-        pre, pos = -1, 0
-        for _, pref in enumerate(prefix):
-            pos = content.find(pref, pos)
-            if pre > -1:
-                if pos > -1:
-                    paragraph = doc[pre + offset : pos + offset]
-                else:
-                    paragraph = doc[pre + offset :]
-                doc = doc.replace(paragraph, paragraph + "\n")
-            if pos > -1:
-                posix.append({"lo": pre + offset, "hi": pos + offset})
-                pre = pos
-                pos += len(pref)
-                offset += 1
+        chunk = []
+        offset: int = 0
+        occurence = kw.extract_keywords(content, span_info=True)
+        prefcount = 0
+        for step, hit in enumerate(occurence):
+            w, lo, hi = hit  # w would be have been added newline separator in the case of prefix
+            if w in preview:
+                prefcount += 1
 
-        for query in querix:
-            pos, l = 0, len(query)
-            while pos != -1:
-                pos = content.find(query, pos)
-                if pos != -1:
-                    posix.append({"lo": pos, "hi": pos + l - 1, "color": "color1"})
-                    pos += l
+                posix.append({"lo": lo + prefcount, "hi": hi + prefcount, "color": preview[w]})
+                if lo > 0:
+                    sub = content[offset:lo]
+                    chunk.append(sub + "\n")
 
+                offset = lo
+            else:
+                posix.append({"lo": lo + prefcount, "hi": hi + prefcount})
         doc["highlight"] = posix
+        doc["text"] = kw.replace_keywords(content)
+
     return response
-
-
-# len(highlight) * 2 <u></u>
-
-
-# def pipe_paint_docs(docs: List[Union[str, Document]], prefix=None, querix=None):
-#     docs = [
-#         {"text": d.meta["raw"], "score": 0.5, "timestamp": d.meta["timestamp"]} if isinstance(d, Document) else {"text": d}
-#         for d in docs
-#     ]
-#     for document in docs:
-#         doc = document["text"]
-#         posix = []
-#         pre, pos = 0, 0
-#         for pre in prefix:
-#             pos = doc.find(pre, pos)
-#             sub = doc[pre:pos] if pos >= 0 else doc
-#             # TODO: Perform search here
-#             for query in querix:
-#                 _pos = 0
-#                 while _pos != -1:
-#                     _pos = sub.find(query, _pos)
-#                     dx = 0 if pos <= 0 else pos
-#                     if _pos != -1:
-#                         posix.append({"lo": _pos + dx, "hi": _pos + len(query) + dx, "color": "color2"})
-#                         _pos += len(query)
-#             if pos != -1:
-#                 posix.append(pos)
-#                 pre = pos
-#                 pos += len(pre)
-#         posix = sorted(posix)
-#         for offset, (lo, hi) in enumerate(zip(posix[:-1], posix[1:])):
-#             paragraph = doc[lo + offset : hi + offset]
-#             doc = doc.replace(paragraph, paragraph + "\n")
-#             # TODO: We can find all the queries here
-#             # The queries would be highlighted and formatted without needing to remember offset later
-
-#             posix.append({"lo": lo + offset, "hi": hi + offset, "color": "color1"})
-
-#         document["text"] = doc
-#         document["highlight"] = light
-
-#     return docs
 
 
 def c_tf_idf(documents, m, ngram_range=(1, 1), stopwords: Iterable = None):
     """
-    TODO: Make IStopper iterable and propagate here
+    TODO: Make  iterable and propagate here
     """
     count = CountVectorizer(ngram_range=ngram_range, stop_words="english").fit(documents)
     t = count.transform(documents).toarray()  # num_docs x different_tokens
