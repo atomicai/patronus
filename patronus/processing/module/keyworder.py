@@ -488,7 +488,6 @@ class KeywordProcessor(object):
                 char = char.lower()
             # when we reach a character that might denote word end
             if char not in self.non_word_boundaries:
-
                 # if end is present in current_dict
                 if self._keyword in current_dict or char in current_dict:
                     # update longest sequence found
