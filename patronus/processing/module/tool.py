@@ -51,6 +51,7 @@ def grouper(iterable, n, worker_id=0, total_workers=1):
     :param total_workers: total number of workers for the PyTorch DataLoader
     :type total_workers: int
     """
+
     # TODO make me comprehensible :)
     def get_iter_start_pos(gen):
         start_pos = worker_id * n

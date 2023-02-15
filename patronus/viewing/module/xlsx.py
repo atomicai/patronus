@@ -41,7 +41,6 @@ class IMap(dict):
 
 
 class IFormat(IMap):
-
     pallete = [
         "#54bebe",
         "#76c8c8",

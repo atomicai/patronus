@@ -1,5 +1,4 @@
 class NIterator(object):
-
     __slots__ = ("_is_next", "_the_next", "it")
 
     def __init__(self, it):
