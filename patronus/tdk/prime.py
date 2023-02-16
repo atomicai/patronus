@@ -4,7 +4,6 @@ import logging
 import os
 import uuid
 from pathlib import Path
-from pprint import pprint as pp
 
 import numpy as np
 import plotly
@@ -24,7 +23,7 @@ from patronus.modeling.module import BM25L
 from patronus.processing import IStopper
 from patronus.storing.module import SQLDocStore
 from patronus.tdk import pipe
-from patronus.tooling import get_data, initialize_device_settings
+from patronus.tooling import chunkify, get_data, initialize_device_settings
 from patronus.viewing.module import plotly_wordcloud
 
 logger = logging.getLogger(__name__)
@@ -48,7 +47,7 @@ stopper = IStopper()
 def search():
     data = request.get_data(parse_form_data=True).decode("utf-8-sig")
     data = json.loads(data)
-    # Placeholder to retrieve all the document(s) from the indexing phaze
+    # Placeholder to retrieve all the document(s) from the indexing stage
     ic(data)
     query = data["text"].strip().lower()
     session["query"] = query
@@ -59,7 +58,7 @@ def search():
     except:
         return jsonify({"docs": []})
     else:
-        response = pipe.pipe_paint_docs(docs=response, query=query)
+        response = pipe.pipe_paint_docs(docs=response, querix=processor(query))
     return jsonify({"docs": response})
 
 
@@ -74,62 +73,79 @@ def upload():
         session["uid"] = str(uid)
     else:
         uid = session["uid"]
-    if not Path(filename).suffix in (".csv", ".xlsx", ".txt"):
-        response["is_suffix_ok"] = False
+
+    if not (cache_dir / str(uid)).exists():
+        (cache_dir / str(uid)).mkdir(parents=True, exist_ok=True)
+    destination = cache_dir / str(uid) / filename
+    fname, fpath = Path(filename), Path(destination)
+    df, columns = None, None
+    is_suffix_ok, is_file_corrupted = True, False
+    if fpath.suffix not in (".xlsx", ".csv"):
+        is_suffix_ok = False
     else:
-        if not (cache_dir / str(uid)).exists():
-            (cache_dir / str(uid)).mkdir(parents=True, exist_ok=True)
-        destination = cache_dir / str(uid) / filename
-        response["is_suffix_ok"] = True
-        response["is_file_corrupted"] = False
-        if Path(filename).suffix in (".csv", ".xlsx"):
+        try:
             xf.save(str(destination))
+            df = next(
+                get_data(
+                    data_dir=cache_dir / uid,
+                    filename=fname.stem,
+                    ext=fname.suffix,
+                    engine="polars",
+                )
+            )
+        except:
+            is_file_corrupted = True
+        else:
+            is_file_corrupted = False
+
+    if is_suffix_ok and not is_file_corrupted:  # is suffix_ok is also false
+        columns = [str(_) for _ in list(df.columns)]
+        arr = df.to_arrow()
+        pq.write_table(arr, cache_dir / uid / f"{fname.stem}.parquet")
         session["filename"] = filename
         response["filename"] = filename
-
-    # --- persist the state ---
-
+        response["text_columns"] = columns
+        response["datetime_columns"] = columns
+    elif is_suffix_ok:
+        msg = "There are some technical issues processing file. Please make sure the file is not corrupted"
+        response["error"] = msg
+        ic(msg)
+    else:
+        msg = f"The file format {fname.suffix} is not yet supported. The supported file formats are \".csv\" and \".xlsx\""
+        response["error"] = msg
+        ic(msg)
+    response["is_suffix_ok"] = is_suffix_ok
+    response["is_file_corrupted"] = is_file_corrupted
     return response
 
 
 def iload():
     """
-    This part of the flow validates the file for corruption,
-
-    performs the conversion to the .parquet
+    This route will scan the file and perform the "lazy" way to push it to the database
 
     sets the `email` | `text` | `date` columns
     """
     data = request.get_json()
-    pp("ILOADing ... \n")
-    pp(data)
     #
     uid = session["uid"]
     filename = Path(session["filename"])
-    df = next(
-        get_data(
-            data_dir=cache_dir / uid,
-            filename=filename.stem,
-            ext=filename.suffix,
-            engine="polars",
-        )
-    )
-    # df = pipe.pipe_polar(df, txt_col_name=data["text"], fn=stopper)
-    arr = df.to_arrow()
-    try:
-        pq.write_table(arr, cache_dir / uid / f"{filename.stem}.parquet")
-        # text_column_name, datetime_column_name, email = data["text"], data["datetime"], data["email"]
-        session["email"] = data.get("email", None)
-        session["text"] = data.get("text", "text")
-        session["datetime"] = data.get("datetime", "datetime")
-    except:
-        return jsonify({"is_date_column_ok": False, "is_text_column_ok": False})
+    text_column, datetime_column = data.get("text", "text"), data.get("datetime", "datetime")
+    is_text_ok, is_date_ok = False, False
+    df = pl.scan_parquet(cache_dir / uid / f"{filename.stem}.parquet")
+    if text_column in df.columns:
+        session["text"] = text_column
+        is_text_ok = True
+    if datetime_column in df.columns:
+        session["datetime"] = datetime_column
+        is_date_ok = True
+
+    session["email"] = data.get("email", None)
 
     # NEED to do something with preprocessed DB
     # TODO:
-    #  (1) Предобработанный файл сохраняем и добавляем в кэш
-    #  (2)
-    return jsonify({"is_date_column_ok": True, "is_text_column_ok": True})
+    # (1) Here, probably the ideal place to wait for the file to be fully added to DB and block for neccesary time
+    # (2)
+    return jsonify({"is_date_column_ok": is_date_ok, "is_text_column_ok": is_text_ok})
 
 
 def download(filename):
