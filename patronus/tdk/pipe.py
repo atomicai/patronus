@@ -46,8 +46,9 @@ def pipe_paint_docs(docs: List[Union[str, Document]], querix: List[str], prefix:
     # 1. Before every <prefix_i:> insert the newline symbol "\n". This is required for beautiful rendering on the client side
     # 2. For every "<prefix_i:> - calculate offset in terms of number of chars up to beginning as well as ending
     # e.g. "hello world query:". For the "query:" prefix the response would be {"lo": 12, "hi": 18}
-    for pref in prefix:
-        kw.add_keyword(pref, "\n" + pref)
+    if prefix is not None:
+        for pref in prefix:
+            kw.add_keyword(pref, "\n" + pref)
 
     preview = {k: i + 1 for i, k in enumerate(kw.get_all_keywords().values())}  # PREfix VIEW
     kw.add_keywords_from_list(querix)

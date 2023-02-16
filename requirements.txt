@@ -22,3 +22,5 @@ python-dotenv==0.21.1
 XlsxWriter==3.0.7
 pyclean==2.6.0
 tensorboard
+docx2txt==0.8
+openpyxl==3.0.10
