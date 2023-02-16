@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 class BM25Okapi(ISFI, IRI):
-
     __slots__ = ("corpus_size", "k1", "b", "store", "b", "avgdl", "epsilon", "idf")
 
     def __init__(
@@ -190,7 +189,6 @@ class BM25Okapi(ISFI, IRI):
 
 
 class BM25L(BM25Okapi):
-
     __slots__ = ("corpus_size", "k1", "b", "doc_freqs", "b", "avgdl", "delta")
 
     def __init__(
