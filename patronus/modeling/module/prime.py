@@ -86,7 +86,7 @@ class BM25Okapi(ISFI, IRI):
         # From each document we need token distribution
         nd = {}  # word -> number of documents with word
         num_tok = 0  # number of tokens (words) across all documents
-        for idx, document in enumerate(corpus):  # TODO: rewrite using batche(s) instead
+        for idx, document in enumerate(corpus):  # TODO: rewrite using batches instead
             doc = (
                 Document.from_dict({"content": document}) if isinstance(document, str) else Document.from_dict(document)
             )  # add idx -> documnet_id mapping to support retrieving by idx
@@ -170,7 +170,7 @@ class BM25Okapi(ISFI, IRI):
             # Instead it must use malloc and then copy the repeated to all elements in the array
             # (thus forcing immediate allocation).
             tf_score = np.zeros(doc_len.shape)
-            for occurence in self.atomic[qx]:
+            for occurence in self.atomic[qx]:  # Every occurence is a position and
                 pos, token_score = occurence
                 tf_score[pos] = token_score
 

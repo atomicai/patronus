@@ -129,22 +129,28 @@ def iload():
     #
     uid = session["uid"]
     filename = Path(session["filename"])
-    text_column, datetime_column = data.get("text", "text"), data.get("datetime", "datetime")
+    text_column, datetime_column = data.get("text", None), data.get("datetime", None)
     is_text_ok, is_date_ok = False, False
     df = pl.scan_parquet(cache_dir / uid / f"{filename.stem}.parquet")
-    if text_column in df.columns:
+    if text_column is not None and text_column in df.columns:
         session["text"] = text_column
         is_text_ok = True
-    if datetime_column in df.columns:
+    if datetime_column is not None and datetime_column in df.columns:
         session["datetime"] = datetime_column
         is_date_ok = True
 
     session["email"] = data.get("email", None)
 
+    if is_date_ok and is_text_ok:
+        return jsonify({"success": "In progress to the moon🚀"})
+    else:
+        return jsonify({"Error": "Back to earth ♁. Fix the column name(s) 🔨"})
+
     # NEED to do something with preprocessed DB
     # TODO:
     # (1) Here, probably the ideal place to wait for the file to be fully added to DB and block for neccesary time
     # (2)
+
     return jsonify({"is_date_column_ok": is_date_ok, "is_text_column_ok": is_text_ok})
 
 
@@ -176,17 +182,25 @@ def view_timeseries():
     # Here we fetch from queue (BROKER) until the required message is receieved
 
     dfr = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")  # raw without cleaning, etc..
+    tecol, dacol = session["text"], session["datetime"]
+    dfr = (
+        dfr.with_columns([pl.col(tecol).is_null().alias("is_empty")])
+        .filter(~pl.col("is_empty"))
+        .select([pl.col(tecol), pl.col(dacol)])
+    )
+    try:
+        dfr = dfr.sort([dacol])
+    except:  # add logging to determine futher the problem.
+        ic(f"Failed to sort by datetime file {uid}-{filename.stem}")
     # <--->
-    dfs = pipe.pipe_polar(
-        dfr, txt_col_name=session["text"], fn=stopper, seps=[":", " "]
-    )  # dataframe to which `IStopper` had been applied
+    dfs = pipe.pipe_polar(dfr, txt_col_name=tecol, fn=stopper, seps=[":", " "])  # dataframe to which `IStopper` had been applied
     # Maybe there is a processed file already?
     # df = next(get_data(data_dir=cache_dir / uid, filename=fname.stem, ext=fname.suffix))
     # docs, times = df["text"].tolist(), df["datetime"].tolist()
     docs, times, raws = (
-        [str(d) for d in list(dfs.select("text"))[0]],
-        [str(d) for d in list(dfs.select("datetime"))[0]],
-        [str(d) for d in list(dfr.select("text"))[0]],
+        [str(d) for d in list(dfs.select(session["text"]))[0]],
+        [str(d) for d in list(dfs.select(session["datetime"]))[0]],
+        [str(d) for d in list(dfr.select(session["text"]))[0]],
     )
     # TODO: Move this wrapping functionality to the couchDB to make it async friendly
     engine = BM25L(processor=processor)

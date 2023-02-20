@@ -17,7 +17,7 @@ class IStopper:
     def __call__(self, x, seps: List[str]):
         response = x.strip().lower() if self.do_lower_case else x.strip()
         for sep in seps:
-            response = " ".join(w for w in response.split(sep) if w not in self.store)
+            response = " ".join([w for w in response.split(sep) if w not in self.store])
         return response
 
 

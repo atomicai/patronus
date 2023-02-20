@@ -47,3 +47,11 @@ query
 query:
 context
 context:
+message
+message:
+messageoperator
+messageoperator:
+appealnum
+appealnum:
+msgbotclient
+msgbotclient:
