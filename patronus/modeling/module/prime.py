@@ -43,12 +43,12 @@ class BM25Okapi(ISFI, IRI):
         self.max_cpu = max_cpu if max_cpu is not None else cpu_count() - 1
         self.connector = collections.defaultdict()
         self.store = MemoDocStore(index=index) if not document_store else document_store
-        self.atomic = collections.defaultdict(list)  # word -> [(idx_1, cnt_1), (idx_2, cnt_2), ..., (idx_k, cnt_k))]
-        # self.store = collections.defaultdict(list)
+        self.tok = collections.defaultdict(list)  # word -> [(idx_1, cnt_1), (idx_2, cnt_2), ..., (idx_k, cnt_k))]
 
     def index(self, docs: List[Union[str, Dict[str, str]]]):
         nd = self._initialize(docs)
         self._calc_idf(nd)
+        self.nd = nd
         # TODO: Parallelize flow
 
     def _get_all_paragraphs(self) -> List[Paragraph]:
@@ -102,7 +102,7 @@ class BM25Okapi(ISFI, IRI):
                     frequencies[t] = 0
                 frequencies[t] += 1
             for tok, freq in frequencies.items():
-                self.atomic[tok].append((idx, freq))
+                self.tok[tok].append((idx, freq))
 
             self.doc_freqs.append(frequencies)  # TODO: test and remove this first document, second, ...
 
@@ -169,7 +169,7 @@ class BM25Okapi(ISFI, IRI):
             # Instead it must use malloc and then copy the repeated to all elements in the array
             # (thus forcing immediate allocation).
             tf_score = np.zeros(doc_len.shape)
-            for occurence in self.atomic[qx]:  # Every occurence is a position and
+            for occurence in self.tok[qx]:  # For every document having term `qx` as well as the ``
                 pos, token_score = occurence
                 tf_score[pos] = token_score
 
@@ -221,7 +221,7 @@ class BM25L(BM25Okapi):
 
             tf_score = np.zeros(doc_len.shape)
 
-            for occurence in self.atomic[qx]:
+            for occurence in self.tok[qx]:
                 pos, token_score = occurence
                 tf_score[pos] = token_score
 
