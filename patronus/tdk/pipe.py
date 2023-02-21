@@ -1,3 +1,4 @@
+import random
 from functools import partial
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Union
@@ -10,7 +11,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 
 from patronus.etc import Document
 from patronus.processing import KeywordProcessor
-from patronus.tooling import Email
+from patronus.tooling import Email, stl
 from patronus.viewing.module import IFormat
 
 
@@ -75,6 +76,20 @@ def pipe_paint_docs(docs: List[Union[str, Document]], querix: List[str], prefix:
                 posix.append({"lo": lo + prefcount, "hi": hi + prefcount})
         doc["highlight"] = posix
         doc["text"] = kw.replace_keywords(content)
+
+    return response
+
+
+def pipe_paint_kods(querix, engine):
+    """
+    Supposed to return the distribution of the word accross the whole corpus and highlight the `spike` over specific range
+    """
+    response = {}
+    for q in querix:
+        # Local "hike" is meant to be keyword
+        docs = engine.retrieve_top_k(q, top_k=20)
+        # TODO: rewrite scoring and add sorting argument(s)
+        response[q] = [{"timestamp": d.meta["timestamp"], "value": random.randint(1, 11)} for d in docs]
 
     return response
 
@@ -218,7 +233,7 @@ def send_over_email(
 __all__ = [
     "pipe_polar",
     "pipe_paint_docs",
-    "pipe_prefix_docs",
+    "pipe_paint_kods",
     "extract_top_n_words_per_topic",
     "extract_topic_sizes",
     "report_overall_topics",

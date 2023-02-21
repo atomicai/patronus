@@ -26,3 +26,4 @@ black==23.1.0
 isort==5.12.0
 docx2txt==0.8
 openpyxl==3.0.10
+dateparser==1.1.7

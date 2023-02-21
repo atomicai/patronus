@@ -19,7 +19,7 @@ from sentence_transformers import SentenceTransformer
 from umap import UMAP
 from werkzeug.utils import secure_filename
 
-from patronus.modeling.module import BM25L
+from patronus.modeling.module import BM25L, BM25Okapi
 from patronus.processing import IStopper
 from patronus.storing.module import SQLDocStore
 from patronus.tdk import pipe
@@ -34,7 +34,14 @@ cache_dir = Path(os.getcwd()) / ".cache"
 devices, n_gpu = initialize_device_settings(use_cuda=torch.cuda.is_available(), multi_gpu=False)
 
 
-processor = lambda x: x.lower().strip().split(" ")
+def processor(x, seps=("_", " ")):
+    x = x.lower().strip()
+    for sep in seps:
+        if sep != " ":
+            x = " ".join(x.split(sep))
+
+    return x.split(" ")
+
 
 model = SentenceTransformer("paraphrase-multilingual-mpnet-base-v2", device=devices[0])
 store = collections.defaultdict()
@@ -203,7 +210,7 @@ def view_timeseries():
         [str(d) for d in list(dfr.select(session["text"]))[0]],
     )
     # TODO: Move this wrapping functionality to the couchDB to make it async friendly
-    engine = BM25L(processor=processor)
+    engine = BM25Okapi(processor=processor)
     engine.index([{"content": d, "timestamp": t, "raw": r} for d, t, r in zip(docs, times, raws)])
     store[uid] = engine
     # <--->
@@ -299,24 +306,22 @@ def view_representation():
     uid = str(session["uid"])
     data = request.get_data(parse_form_data=True).decode("utf-8-sig")
     data = json.loads(data)
-    # Placeholder to retrieve all the document(s) from the indexing phaze
-    # {"api": "viewing_timeseries_examples", "topic_name": "..."}
-    # TODO:
     query = data["topic_name"].strip().lower()
     api = data["api"].strip().lower()
     ic(api)
     if api != "default":  # TODO: default больше не будет
-        return jsonify({"docs": []})
+        return jsonify({"docs": [], "keywords": []})
     engine = store[uid]
     response = None
     try:
         response = engine.retrieve_top_k(processor(query), top_k=100)
     except:
         return jsonify({"docs": []})
+    querix = processor(query)[1:]  # "1_<keyword1>_<keyword2>_<keyword3>_<keyword4>_<keyword5>_<...>"
+    docs = pipe.pipe_paint_docs(docs=response, querix=querix, prefix=["operator:", "client:"])
+    kods = pipe.pipe_paint_kods(querix=querix, engine=engine)
 
-    response = pipe.pipe_paint_docs(docs=response, querix=processor(query), prefix=["operator:", "client:"])
-
-    return jsonify({"docs": response})
+    return jsonify({"docs": docs, "keywords": kods})
 
 
 def view_clustering():
