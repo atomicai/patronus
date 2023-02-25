@@ -3,6 +3,7 @@ from functools import partial
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Union
 
+import dateparser as dp
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -89,7 +90,10 @@ def pipe_paint_kods(querix, engine):
         # Local "hike" is meant to be keyword
         docs = engine.retrieve_top_k(q, top_k=20)
         # TODO: rewrite scoring and add sorting argument(s)
-        response[q] = [{"timestamp": d.meta["timestamp"], "value": random.randint(1, 11)} for d in docs]
+        response[q] = [
+            {"timestamp": dp.parse(d.meta["timestamp"]).strftime("%d/%m/%y %H:%M:%S"), "value": random.randint(1, 11)}
+            for d in docs
+        ]
 
     return response
 
