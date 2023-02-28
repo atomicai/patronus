@@ -28,3 +28,4 @@ docx2txt==0.8
 openpyxl==3.0.10
 dateparser==1.1.7
 autoflake==1.7.7
+simpletransformers @ git+https://github.com/atomicai/simpletransformers.git
