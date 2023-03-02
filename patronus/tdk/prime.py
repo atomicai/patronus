@@ -5,25 +5,21 @@ import os
 import uuid
 from pathlib import Path
 
-import numpy as np
 import plotly
 import polars as pl
 import pyarrow.parquet as pq
-import random_name
 import torch
 from bertopic import BERTopic
-from flask import jsonify, render_template, request, send_file, session
+from flask import jsonify, request, send_file, session
 from icecream import ic
-from kombu import Connection, Consumer
 from sentence_transformers import SentenceTransformer
 from umap import UMAP
 from werkzeug.utils import secure_filename
 
-from patronus.modeling.module import BM25L, BM25Okapi
+from patronus.modeling.module import BM25Okapi
 from patronus.processing import IStopper
-from patronus.storing.module import SQLDocStore
 from patronus.tdk import pipe
-from patronus.tooling import chunkify, get_data, initialize_device_settings
+from patronus.tooling import get_data, initialize_device_settings
 from patronus.viewing.module import plotly_wordcloud
 
 logger = logging.getLogger(__name__)
@@ -153,11 +149,6 @@ def iload():
     else:
         return jsonify({"Error": "Back to earth ♁. Fix the column name(s) 🔨"})
 
-    # NEED to do something with preprocessed DB
-    # TODO:
-    # (1) Here, probably the ideal place to wait for the file to be fully added to DB and block for neccesary time
-    # (2)
-
     return jsonify({"is_date_column_ok": is_date_ok, "is_text_column_ok": is_text_ok})
 
 
@@ -213,7 +204,7 @@ def view_timeseries():
     engine = BM25Okapi(processor=processor)
     engine.index([{"content": d, "timestamp": t, "raw": r} for d, t, r in zip(docs, times, raws)])
     store[uid] = engine
-    # <--->
+    # <---> Processing ends here
 
     # embeddings = model.encode(docs, show_progress_bar=True, device=devices[0])
     topics, probs = topmodel.fit_transform(docs, embeddings=None)  # we use model under the hood
@@ -225,7 +216,7 @@ def view_timeseries():
     )
     tf_idf, count = pipe.c_tf_idf([str(d) for d in list(docs_per_topic.select(pl.col("Doc")))[0]], m=len(docs))
     top_n_words = pipe.extract_top_n_words_per_topic(tf_idf, count, docs_per_topic, n=5)
-
+    # Мы показываем польтзователю,, что идет индексация и что-то считается.
     topics_over_time = topmodel.topics_over_time(docs, times, nr_bins=20)
     plopics = pl.from_pandas(topics_over_time)
     plopics = (
