@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import List, Union
 
 from patronus.processing.mask import IPath
-from patronus.tooling import chunkify
+from patronus.tooling import chunkify, stl
 
 
 class IStopper:
@@ -12,13 +12,17 @@ class IStopper:
         path = IPath.stopwordspath if path is None else path
         with open(str(path), "r") as fin:
             for word in chunkify(fin, sep="\n"):
-                self.store.add(word.strip())
+                _word = word.lower() if do_lower_case else word
+                self.store.add(_word.strip())
 
     def __call__(self, x, seps: List[str]):
         response = x.strip().lower() if self.do_lower_case else x.strip()
         for sep in seps:
             response = " ".join([w for w in response.split(sep) if w not in self.store])
         return response
+
+    def __iter__(self):
+        return stl.NIterator(self.store)
 
 
 __all__ = ["IStopper"]

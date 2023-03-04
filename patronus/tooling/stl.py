@@ -16,6 +16,12 @@ class NIterator(object):
                 self._is_next = True
         return self._is_next
 
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self.next()
+
     def next(self):
         if self._is_next:
             response = self._the_next

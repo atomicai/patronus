@@ -102,7 +102,7 @@ def c_tf_idf(documents, m, ngram_range=(1, 1), stopwords: Iterable = None):
     """
     TODO: Make  iterable and propagate here
     """
-    count = CountVectorizer(ngram_range=ngram_range, stop_words="english").fit(documents)
+    count = CountVectorizer(ngram_range=ngram_range, stop_words=list(stopwords)).fit(documents)
     t = count.transform(documents).toarray()  # num_docs x different_tokens
     w = t.sum(axis=1)  # (num_docs,) different tokens per document
     tf = np.divide(t.T, w)  #
