@@ -42,7 +42,7 @@ def processor(x, seps=("_", " ")):
 model = SentenceTransformer("paraphrase-multilingual-mpnet-base-v2", device=devices[0])
 store = collections.defaultdict()
 topmodel = BERTopic(
-    language="multilingual", n_gram_range=(1, 2), min_topic_size=7, umap_model=UMAP(random_state=42), embedding_model=model
+    language="multilingual", n_gram_range=(1, 2), min_topic_size=2, umap_model=UMAP(random_state=42), embedding_model=model
 )
 stopper = IStopper()
 
@@ -192,6 +192,16 @@ def view_timeseries():
         ic(f"Failed to sort by datetime file {uid}-{filename.stem}")
     # <--->
     dfs = pipe.pipe_polar(dfr, txt_col_name=tecol, fn=stopper, seps=[":", " "])  # dataframe to which `IStopper` had been applied
+
+    # Add filtering if there're some empty row(s) after the process
+    def validate(x):
+        return str(x).strip() == ""
+
+    dfs = (
+        dfs.with_columns([pl.col(tecol).apply(validate).alias("is_empty")])
+        .filter(~pl.col("is_empty"))
+        .select([pl.col(tecol), pl.col(dacol)])
+    )
     # Maybe there is a processed file already?
     # df = next(get_data(data_dir=cache_dir / uid, filename=fname.stem, ext=fname.suffix))
     # docs, times = df["text"].tolist(), df["datetime"].tolist()
@@ -214,7 +224,9 @@ def view_timeseries():
         .groupby("Topic")
         .agg(pl.col("Doc").apply(lambda x: " ".join(x)))
     )
-    tf_idf, count = pipe.c_tf_idf([str(d) for d in list(docs_per_topic.select(pl.col("Doc")))[0]], m=len(docs))
+    tf_idf, count = pipe.c_tf_idf(
+        [str(d) for d in list(docs_per_topic.select(pl.col("Doc")))[0]], m=len(docs), stopwords=stopper
+    )
     top_n_words = pipe.extract_top_n_words_per_topic(tf_idf, count, docs_per_topic, n=5)
     # Мы показываем польтзователю,, что идет индексация и что-то считается.
     topics_over_time = topmodel.topics_over_time(docs, times, nr_bins=20)

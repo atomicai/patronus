@@ -29,6 +29,7 @@ class IPath:
     runnsplitpath: ClassVar[str] = str(Path(__file__).parent.parent.parent / "recoiling" / "modelru.onnx")
     ennnsplitpath: ClassVar[str] = str(Path(__file__).parent.parent.parent / "recoiling" / "modelen.onnx")
     stopwordspath: ClassVar[str] = str(Path(__file__).parent.parent.parent / "recoiling" / "stopwords.txt")
+    prefixwordspath: ClassVar[str] = str(Path(__file__).parent.parent.parent / "recoiling" / "prefixwords.txt")
 
 
 __all__ = ["IChunker", "IStopper", "IPath"]
