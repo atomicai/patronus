@@ -43,7 +43,7 @@ def processor(x, seps=("_", " ")):
 model = SentenceTransformer("paraphrase-multilingual-mpnet-base-v2", device=devices[0])
 store = collections.defaultdict()
 botpic = BERTopic(
-    language="multilingual", n_gram_range=(1, 2), min_topic_size=2, umap_model=UMAP(random_state=42), embedding_model=model
+    language="multilingual", n_gram_range=(1, 2), min_topic_size=3, umap_model=UMAP(random_state=42), embedding_model=model
 )
 stopper = IStopper()
 prefixer = IPrefixer()
@@ -65,6 +65,15 @@ def search():
     else:
         response = pipe.pipe_paint_docs(docs=response, querix=processor(query))
     return jsonify({"docs": response})
+
+
+# "title": str vs
+# "label": str
+"text"
+# "doc_score" -> str
+"timestamp"
+# "highlight" -> [{"lo": 1, "hi": 5, "score": "abracadabra", "color": 1}]
+# "highlight_idx" -> 0
 
 
 def upload():

@@ -1,6 +1,8 @@
 client:
 operator:
 MESSAGEOPERATOR:
+CRMAPPEALNUM:
+MSGBOTCLIENT:
 MESSAGE:
 APPEALNUM:
 closechat:

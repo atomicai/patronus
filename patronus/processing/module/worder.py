@@ -1,4 +1,5 @@
 import abc
+import string
 from pathlib import Path
 from typing import List, Union
 
@@ -23,14 +24,19 @@ class IWorder(abc.ABC):
 
 
 class IStopper(IWorder):
-    def __init__(self, path: Union[Path, str] = None, do_lower_case: bool = True):
+    def __init__(self, path: Union[Path, str] = None, do_lower_case: bool = True, remove_digits: bool = True):
         path = IPath.stopwordspath if path is None else path
         super(IStopper, self).__init__(path, do_lower_case)
+        self.remove_digits = remove_digits
 
     def __call__(self, x, seps: List[str]):
         response = x.strip().lower() if self.do_lower_case else x.strip()
         for sep in seps:
-            response = " ".join([w for w in response.split(sep) if w not in self.store])
+            if self.remove_digits:
+                words = [w for w in response.split(sep) if w not in self.store and not w.isdigit()]
+            else:
+                words = [w for w in response.split(sep) if w not in self.store]
+            response = " ".join(words)
         return response
 
 
