@@ -17,7 +17,8 @@ from umap import UMAP
 from werkzeug.utils import secure_filename
 
 from patronus.modeling.module import BM25Okapi
-from patronus.processing import IStopper
+from patronus.processing import IPrefixer, IStopper
+from patronus.processing import pipe as ppipe
 from patronus.tdk import pipe
 from patronus.tooling import get_data, initialize_device_settings
 from patronus.viewing.module import plotly_wordcloud
@@ -41,10 +42,11 @@ def processor(x, seps=("_", " ")):
 
 model = SentenceTransformer("paraphrase-multilingual-mpnet-base-v2", device=devices[0])
 store = collections.defaultdict()
-topmodel = BERTopic(
+botpic = BERTopic(
     language="multilingual", n_gram_range=(1, 2), min_topic_size=2, umap_model=UMAP(random_state=42), embedding_model=model
 )
 stopper = IStopper()
+prefixer = IPrefixer()
 
 
 def search():
@@ -191,14 +193,12 @@ def view_timeseries():
     except:  # add logging to determine futher the problem.
         ic(f"Failed to sort by datetime file {uid}-{filename.stem}")
     # <--->
-    dfs = pipe.pipe_polar(dfr, txt_col_name=tecol, fn=stopper, seps=[":", " "])  # dataframe to which `IStopper` had been applied
-
-    # Add filtering if there're some empty row(s) after the process
-    def validate(x):
-        return str(x).strip() == ""
+    dfs = ppipe.pipe_polar(
+        dfr, txt_col_name=tecol, fn=stopper, seps=[":", " "]
+    )  # dataframe to which `IStopper` had been applied
 
     dfs = (
-        dfs.with_columns([pl.col(tecol).apply(validate).alias("is_empty")])
+        dfs.with_columns([pl.col(tecol).apply(ppipe.pipe_nullifier).alias("is_empty")])
         .filter(~pl.col("is_empty"))
         .select([pl.col(tecol), pl.col(dacol)])
     )
@@ -210,15 +210,15 @@ def view_timeseries():
         [str(d) for d in list(dfs.select(session["datetime"]))[0]],
         [str(d) for d in list(dfr.select(session["text"]))[0]],
     )
-    # TODO: Move this wrapping functionality to the couchDB to make it async friendly
+    # TODO: Move this wrapping functionality to the couchDB | searchEngineto make it async friendly
     engine = BM25Okapi(processor=processor)
     engine.index([{"content": d, "timestamp": t, "raw": r} for d, t, r in zip(docs, times, raws)])
     store[uid] = engine
     # <---> Processing ends here
 
     # embeddings = model.encode(docs, show_progress_bar=True, device=devices[0])
-    topics, probs = topmodel.fit_transform(docs, embeddings=None)  # we use model under the hood
-    info = topmodel.get_topic_info()
+    topics, probs = botpic.fit_transform(docs, embeddings=None)  # we use model under the hood
+    info = botpic.get_topic_info()
     docs_per_topic = (
         pl.DataFrame({"Doc": docs, "Topic": topics, "Id": range(len(docs))})
         .groupby("Topic")
@@ -229,7 +229,7 @@ def view_timeseries():
     )
     top_n_words = pipe.extract_top_n_words_per_topic(tf_idf, count, docs_per_topic, n=5)
     # Мы показываем польтзователю,, что идет индексация и что-то считается.
-    topics_over_time = topmodel.topics_over_time(docs, times, nr_bins=20)
+    topics_over_time = botpic.topics_over_time(docs, times, nr_bins=20)
     plopics = pl.from_pandas(topics_over_time)
     plopics = (
         plopics.sort("Frequency")
@@ -263,12 +263,12 @@ def view_timeseries():
             message="Во вложении файл с аналитикой.\nС уважением, Команда корневых причин.",
             author="itarlinskiy@yandex.ru",
         )
-    fig = topmodel.visualize_topics_over_time(topics_over_time, top_n_topics=10)
+    fig = botpic.visualize_topics_over_time(topics_over_time, top_n_topics=10)
 
     # TODO:
-    session["plopics"] = topmodel.visualize_topics(width=1250, height=450)
-    session["examples"] = topmodel.visualize_documents(raws, width=1250, height=450)
-    session["tropics"] = topmodel.visualize_barchart(width=312.5, height=225, title="Topic Word Scores")
+    session["plopics"] = botpic.visualize_topics(width=1250, height=450)
+    session["examples"] = botpic.visualize_documents(raws, width=1250, height=450)
+    session["tropics"] = botpic.visualize_barchart(width=312.5, height=225, title="Topic Word Scores")
 
     # TODO:
     # Первый график всегда будет eager и ему тоже нужен будет response_type: docs
@@ -321,7 +321,8 @@ def view_representation():
     except:
         return jsonify({"docs": []})
     querix = processor(query)[1:]  # "1_<keyword1>_<keyword2>_<keyword3>_<keyword4>_<keyword5>_<...>"
-    docs = pipe.pipe_paint_docs(docs=response, querix=querix, prefix=["operator:", "client:"])
+
+    docs = pipe.pipe_paint_docs(docs=response, querix=querix, prefix=list(prefixer))
     kods = pipe.pipe_paint_kods(querix=querix, engine=engine)
 
     return jsonify({"docs": docs, "keywords": kods})
