@@ -15,15 +15,6 @@ class IChunker(abc.ABC):
         pass
 
 
-class IStopper(abc.ABC):
-    def __init__(self, model: Callable):
-        self.model = model
-
-    @abc.abstractmethod
-    def stopify(self, **kwargs):
-        pass
-
-
 @dataclass
 class IPath:
     runnsplitpath: ClassVar[str] = str(Path(__file__).parent.parent.parent / "recoiling" / "modelru.onnx")
@@ -32,4 +23,4 @@ class IPath:
     prefixwordspath: ClassVar[str] = str(Path(__file__).parent.parent.parent / "recoiling" / "prefixwords.txt")
 
 
-__all__ = ["IChunker", "IStopper", "IPath"]
+__all__ = ["IChunker", "IPath"]

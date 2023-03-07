@@ -1,0 +1,6 @@
+client:
+operator:
+MESSAGEOPERATOR:
+MESSAGE:
+APPEALNUM:
+closechat:
