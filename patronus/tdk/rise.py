@@ -16,7 +16,8 @@ from flask_session import Session
 from patronus.etc import Document
 from patronus.storing.module import MemoDocStore
 from patronus.tdk import prime
-from patronus.tooling import initialize_device_settings
+
+from flask_socketio import SocketIO
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -48,6 +49,7 @@ app = Flask(
 app.secret_key = "expectopatronum"
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
+socketio = SocketIO(app)
 
 logger.info("NEW INSTANCE is created")
 
@@ -61,12 +63,19 @@ def index(path):
         return send_from_directory(app.static_folder, "index.html")
 
 
+progress_namespace = '/progress'
+
+# required for scoketio initialization
+@socketio.on("connect", namespace=progress_namespace)
+def test_connect():
+    pass
+
 app.add_url_rule("/searching", methods=["POST"], view_func=prime.search)
 app.add_url_rule("/uploading", methods=["POST"], view_func=prime.upload)
 app.add_url_rule("/iloading", methods=["POST"], view_func=prime.iload)
 app.add_url_rule("/downloading/<filename>", methods=["GET"], view_func=prime.download)
 app.add_url_rule("/viewing", methods=["GET"], view_func=prime.view)
-app.add_url_rule("/viewing_timeseries", methods=["POST"], view_func=prime.view_timeseries)
+app.add_url_rule("/viewing_timeseries", methods=["POST"], view_func=prime.view_timeseries_wrapper(socketio, progress_namespace))
 app.add_url_rule("/viewing_timeseries_examples", methods=["POST"], view_func=prime.view_timeseries_examples)
 app.add_url_rule("/viewing_timeseries_plopics", methods=["POST"], view_func=prime.view_timeseries_plopics)
 app.add_url_rule("/viewing_timeseries_tropics", methods=["POST"], view_func=prime.view_timeseries_tropics)
@@ -75,4 +84,4 @@ app.add_url_rule("/viewing_representation", methods=["POST"], view_func=prime.vi
 app.add_url_rule("/snapshotting", methods=["POST"], view_func=prime.snapshot)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=7777)
+    socketio.run(app)

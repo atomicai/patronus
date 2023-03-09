@@ -22,6 +22,7 @@ from patronus.processing import pipe as ppipe
 from patronus.tdk import pipe
 from patronus.tooling import get_data, initialize_device_settings
 from patronus.viewing.module import plotly_wordcloud
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -174,15 +175,35 @@ def view():
     )
 
 
-def view_timeseries():
-    uid = str(session["uid"])
-    filename = Path(session["filename"])
+def view_timeseries_wrapper(socketio, progress_namespace):
+    def send_progress(value):
+        socketio.send(value, namespace=progress_namespace)
+
+    def handler():
+        uid = str(session["uid"])
+        filename = Path(session["filename"])
+        text = session['text']
+        datetime = session['datetime']
+        email = session.get("email", None)
+        def run():
+            threading.current_thread().return_value = view_timeseries(send_progress, uid, filename, text, datetime, email)
+        thread = socketio.start_background_task(run)
+        thread.join();
+        session["plopics"] = thread.return_value["plopics"]
+        session["examples"] = thread.return_value["examples"]
+        session["tropics"] = thread.return_value["tropics"]
+        return jsonify(thread.return_value["response"])
+
+    return handler
+
+def view_timeseries(send_progress, uid, filename, text, datetime, email):
+    send_progress({ 'name': 'Initializing ...' })
     # fname = Path(filename)
     # TODO: Push here to the queue
     # Here we fetch from queue (BROKER) until the required message is receieved
 
     dfr = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")  # raw without cleaning, etc..
-    tecol, dacol = session["text"], session["datetime"]
+    tecol, dacol = text, datetime
     dfr = (
         dfr.with_columns([pl.col(tecol).is_null().alias("is_empty")])
         .filter(~pl.col("is_empty"))
@@ -206,9 +227,9 @@ def view_timeseries():
     # df = next(get_data(data_dir=cache_dir / uid, filename=fname.stem, ext=fname.suffix))
     # docs, times = df["text"].tolist(), df["datetime"].tolist()
     docs, times, raws = (
-        [str(d) for d in list(dfs.select(session["text"]))[0]],
-        [str(d) for d in list(dfs.select(session["datetime"]))[0]],
-        [str(d) for d in list(dfr.select(session["text"]))[0]],
+        [str(d) for d in list(dfs.select(text))[0]],
+        [str(d) for d in list(dfs.select(datetime))[0]],
+        [str(d) for d in list(dfr.select(text))[0]],
     )
     # TODO: Move this wrapping functionality to the couchDB | searchEngineto make it async friendly
     engine = BM25Okapi(processor=processor)
@@ -216,8 +237,15 @@ def view_timeseries():
     store[uid] = engine
     # <---> Processing ends here
 
+    send_progress({ 'name': 'Transforming ...' })
+    def send_transforming_progress(value):   # SHOULD be used inside botpic.fit_transform
+        send_progress({'name': 'Transforming', 'value': value})
+
     # embeddings = model.encode(docs, show_progress_bar=True, device=devices[0])
     topics, probs = botpic.fit_transform(docs, embeddings=None)  # we use model under the hood
+
+    send_progress({ 'name': 'Getting of topics info ...' })
+
     info = botpic.get_topic_info()
     docs_per_topic = (
         pl.DataFrame({"Doc": docs, "Topic": topics, "Id": range(len(docs))})
@@ -227,8 +255,14 @@ def view_timeseries():
     tf_idf, count = pipe.c_tf_idf(
         [str(d) for d in list(docs_per_topic.select(pl.col("Doc")))[0]], m=len(docs), stopwords=stopper
     )
+
+    send_progress({ 'name': 'Extracting of top words ...' })
+
     top_n_words = pipe.extract_top_n_words_per_topic(tf_idf, count, docs_per_topic, n=5)
     # Мы показываем польтзователю,, что идет индексация и что-то считается.
+
+    send_progress({ 'name': 'Getting of topics over time ...' })
+
     topics_over_time = botpic.topics_over_time(docs, times, nr_bins=20)
     plopics = pl.from_pandas(topics_over_time)
     plopics = (
@@ -245,6 +279,8 @@ def view_timeseries():
 
     plopics = {k: list(v) for k, v in plopics.items()}
 
+    send_progress({ 'name': 'Visualizing of overall topics ...' })
+
     # TODO: use timestamp from topics_over_time!
     report_filepath = Path(os.getcwd()) / ".cache" / uid / str(filename.stem + ".xlsx")
     pipe.report_overall_topics(
@@ -255,43 +291,47 @@ def view_timeseries():
         topk=5,
     )
     # TODO: send the report over email to the recievers with attachment(s) = [report_filepath]
-    if session.get("email", None) is not None:
+    if email is not None:
         pipe.send_over_email(
             attachments=[report_filepath],
-            receivers=[str(session["email"])],
+            receivers=[str(email)],
             subject="Анализ обращений по ключевым словам в разрезе разных тематик",
             message="Во вложении файл с аналитикой.\nС уважением, Команда корневых причин.",
             author="itarlinskiy@yandex.ru",
         )
     fig = botpic.visualize_topics_over_time(topics_over_time, top_n_topics=10)
 
-    # TODO:
-    session["plopics"] = botpic.visualize_topics(width=1250, height=450)
-    session["examples"] = botpic.visualize_documents(raws, width=1250, height=450)
-    session["tropics"] = botpic.visualize_barchart(width=312.5, height=225, title="Topic Word Scores")
+    send_progress({ 'name': 'Visualizing of data ...' })
 
-    # TODO:
-    # Первый график всегда будет eager и ему тоже нужен будет response_type: docs
-    # Остальные графики lazy после первого (первый тоже eager, т.к. клиент его должен сразу видеть)
-    # Их
-    response = [
-        {
-            "figure": json.loads(plotly.io.to_json(plotly_wordcloud(" ".join(docs), scale=1), pretty=True)),
-            "lazy_figure_api": [
-                {"api": "viewing_timeseries_examples", "title": "Representative documents per topic", "response_type": "docs"},
-                {
-                    "api": "viewing_timeseries_plopics",
-                    "title": "Collinearity between topics",
-                },
-                {"api": "viewing_timeseries_tropics", "title": "Keyword ranking per topics"},
-            ],
-        },
-        {
-            "figure": json.loads(plotly.io.to_json(fig, pretty=True)),
-        },
-    ]
-    return jsonify(response)
+    def send_visualize_topics_progress(value):   # SHOULD be used inside botpic.visualize_topics
+        send_progress({'name': 'Visualizing of topics', 'value': value})
+    def send_visualize_documents_progress(value):   # SHOULD be used inside botpic.visualize_documents
+        send_progress({'name': 'Visualizing of documents', 'value': value})
+    def send_visualize_barchart_progress(value):   # SHOULD be used inside botpic.visualize_barchart
+        send_progress({'name': 'Visualizing of barcharts', 'value': value})
 
+    return {
+        "plopics": botpic.visualize_topics(width=1250, height=450),
+        "examples": botpic.visualize_documents(raws, width=1250, height=450),
+        "tropics": botpic.visualize_barchart(width=312.5, height=225, title="Topic Word Scores"),
+        "response": [
+            {
+                "figure": json.loads(plotly.io.to_json(plotly_wordcloud(" ".join(docs), scale=1), pretty=True)),
+                "lazy_figure_api": [
+                    {"api": "viewing_timeseries_examples", "title": "Representative documents per topic",
+                     "response_type": "docs"},
+                    {
+                        "api": "viewing_timeseries_plopics",
+                        "title": "Collinearity between topics",
+                    },
+                    {"api": "viewing_timeseries_tropics", "title": "Keyword ranking per topics"},
+                ],
+            },
+            {
+                "figure": json.loads(plotly.io.to_json(fig, pretty=True)),
+            },
+        ],
+    }
 
 def view_timeseries_examples():
     return plotly.io.to_json(session["examples"], pretty=True)
