@@ -103,11 +103,13 @@ def c_tf_idf(documents, m, ngram_range=(1, 1), stopwords: Iterable = None):
     TODO: Make  iterable and propagate here
     """
     count = CountVectorizer(ngram_range=ngram_range, stop_words=list(stopwords)).fit(documents)
-    t = count.transform(documents).toarray()  # num_docs x different_tokens
-    w = t.sum(axis=1)  # (num_docs,) different tokens per document
-    tf = np.divide(t.T, w)  #
-    sum_t = t.sum(axis=0)  #
-    idf = np.log(np.divide(m, sum_t)).reshape(-1, 1)  #
+    t = count.transform(documents).toarray()  # (num_topics, different_tokens)
+    w = t.sum(axis=1)  # (num_topics,). How many tokens occur at specific `topic`
+    tf = np.divide(t.T, w)  # (num_tokens, num_topics). This step transforms `count` to `frequency`
+    sum_t = t.sum(
+        axis=0
+    )  # (num_tokens, ). Summation across `i` th dimension. How many times specific token occured in different topics
+    idf = np.log(np.divide(m, sum_t)).reshape(-1, 1)  # (num_tokens, 1)
     tf_idf = np.multiply(tf, idf)
 
     return tf_idf, count

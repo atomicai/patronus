@@ -72,6 +72,7 @@ app.add_url_rule("/viewing_timeseries_plopics", methods=["POST"], view_func=prim
 app.add_url_rule("/viewing_timeseries_tropics", methods=["POST"], view_func=prime.view_timeseries_tropics)
 app.add_url_rule("/viewing_clustering", methods=["POST"], view_func=prime.view_clustering)
 app.add_url_rule("/viewing_representation", methods=["POST"], view_func=prime.view_representation)
+app.add_url_rule("/viewing_representation_keywords", methods=["POST"], view_func=prime.view_representation_keywords)
 app.add_url_rule("/snapshotting", methods=["POST"], view_func=prime.snapshot)
 
 if __name__ == "__main__":
