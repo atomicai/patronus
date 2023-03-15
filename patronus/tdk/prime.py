@@ -205,12 +205,13 @@ def view_timeseries():
     dfs = ppipe.pipe_polar(
         dfr, txt_col_name=tecol, fn=stopper, seps=[":", " "]
     )  # dataframe to which `IStopper` had been applied
-
+    ic("Stopwords removal is completed")
     dfs = (
         dfs.with_columns([pl.col(tecol).apply(ppipe.pipe_nullifier).alias("is_empty")])
         .filter(~pl.col("is_empty"))
         .select([pl.col(tecol), pl.col(dacol)])
     )
+    ic(f"Final size after preprocessing is {str(dfs.shape)}")
     # Maybe there is a processed file already?
     # df = next(get_data(data_dir=cache_dir / uid, filename=fname.stem, ext=fname.suffix))
     # docs, times = df["text"].tolist(), df["datetime"].tolist()
@@ -225,8 +226,8 @@ def view_timeseries():
     store[uid] = engine
     # <---> Processing ends here
 
-    # embeddings = model.encode(docs, show_progress_bar=True, device=devices[0])
-    topics, probs = botpic.fit_transform(docs, embeddings=None)  # we use model under the hood
+    embeddings = model.encode(docs, show_progress_bar=True, device=devices[0])
+    topics, probs = botpic.fit_transform(docs, embeddings=embeddings)  # we use model under the hood
     info = botpic.get_topic_info()
     docs_per_topic = (
         pl.DataFrame({"Doc": docs, "Topic": topics, "Id": range(len(docs))})
@@ -276,7 +277,7 @@ def view_timeseries():
 
     # TODO:
     session["plopics"] = botpic.visualize_topics(width=1250, height=450)
-    session["examples"] = botpic.visualize_documents(raws, width=1250, height=450)
+    session["examples"] = botpic.visualize_documents(raws, width=1250, height=450, embeddings=embeddings)
     session["tropics"] = botpic.visualize_barchart(width=312.5, height=225, title="Topic Word Scores")
 
     # TODO:
@@ -335,6 +336,24 @@ def view_representation():
     kods = pipe.pipe_paint_kods(querix=querix, engine=engine)
 
     return jsonify({"docs": docs, "keywords": kods})
+
+
+def view_representation_keywords():
+    uid = str(session["uid"])
+    data = request.get_data(parse_form_data=True).decode("utf-8-sig")
+    data = json.loads(data)
+    query = data["topic_name"].strip().lower()
+    querix = processor(query)[1:]
+    ic(data)
+    engine = store[uid]
+    try:
+        response = engine.retrieve_top_k(querix, top_k=100)
+    except:
+        return jsonify({"docs": []})
+    querix = processor(query)[1:]
+    kods = pipe.pipe_paint_kods(querix=querix, engine=engine)
+
+    return jsonify(kods)
 
 
 def view_clustering():
