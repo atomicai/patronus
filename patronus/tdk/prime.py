@@ -56,6 +56,7 @@ def search():
     ic(data)
     query = data["text"].strip().lower()
     session["query"] = query
+    querix = processor(query)
     uid = str(session["uid"])
     response = None
     try:
@@ -63,7 +64,7 @@ def search():
     except:
         return jsonify({"docs": []})
     else:
-        response = pipe.pipe_paint_docs(docs=response, querix=processor(query))
+        response = pipe.pipe_paint_docs(docs=response, querix=querix, prefix=prefixer)
     return jsonify({"docs": response})
 
 
@@ -172,10 +173,6 @@ def download(filename):
 
 
 def view():
-    # TODO:
-    # Serves as a proxy...
-    # This will check the user's subscription as well as meta information
-    # For now, it is dummy intermediate route that returns all the available route(s)
     return jsonify(
         [
             {"figure": "viewing_timeseries", "title": "TimeSeries", "premium": True},
@@ -220,11 +217,6 @@ def view_timeseries():
         [str(d) for d in list(dfs.select(session["datetime"]))[0]],
         [str(d) for d in list(dfr.select(session["text"]))[0]],
     )
-    # TODO: Move this wrapping functionality to the couchDB | searchEngineto make it async friendly
-    engine = BM25Okapi(processor=processor)
-    engine.index([{"content": d, "timestamp": t, "raw": r} for d, t, r in zip(docs, times, raws)])
-    store[uid] = engine
-    # <---> Processing ends here
 
     embeddings = model.encode(docs, show_progress_bar=True, device=devices[0])
     topics, probs = botpic.fit_transform(docs, embeddings=embeddings)  # we use model under the hood
@@ -241,7 +233,12 @@ def view_timeseries():
     # Мы показываем польтзователю,, что идет индексация и что-то считается.
     topics_over_time = botpic.topics_over_time(docs, times, nr_bins=20)
     plopics = pl.from_pandas(topics_over_time)
-    plopics = (
+    plopics = plopics.sort("Frequency")
+    engine = BM25Okapi(processor=processor)
+    engine.index([{"content": d, "timestamp": t, "raw": r, "topic_id": c} for d, t, r, c in zip(docs, times, raws, topics)])
+    store[uid] = engine
+    list(plopics["Timestamp"].unique())
+    _plopics = (
         plopics.sort("Frequency")
         .groupby("Topic")
         .agg(
@@ -253,7 +250,7 @@ def view_timeseries():
         )
     ).to_dict()
 
-    plopics = {k: list(v) for k, v in plopics.items()}
+    _plopics = {k: list(v) for k, v in _plopics.items()}
 
     # TODO: use timestamp from topics_over_time!
     report_filepath = Path(os.getcwd()) / ".cache" / uid / str(filename.stem + ".xlsx")
@@ -261,7 +258,7 @@ def view_timeseries():
         keywords=top_n_words,
         info=info,
         filepath=str(report_filepath),
-        plopics=plopics,
+        plopics=_plopics,
         topk=5,
     )
     # TODO: send the report over email to the recievers with attachment(s) = [report_filepath]
@@ -319,18 +316,19 @@ def view_representation():
     uid = str(session["uid"])
     data = request.get_data(parse_form_data=True).decode("utf-8-sig")
     data = json.loads(data)
+    ic(data)
     query = data["topic_name"].strip().lower()
+    query = processor(query)
+    q_idx, querix = int(query[0]), query[1:]
     api = data["api"].strip().lower()
-    ic(api)
     if api != "default":  # TODO: default больше не будет
         return jsonify({"docs": [], "keywords": []})
     engine = store[uid]
     response = None
     try:
-        response = engine.retrieve_top_k(processor(query), top_k=100)
+        response = engine.retrieve_top_k(querix, topic_ids=[q_idx], top_k=100)
     except:
         return jsonify({"docs": []})
-    querix = processor(query)[1:]  # "1_<keyword1>_<keyword2>_<keyword3>_<keyword4>_<keyword5>_<...>"
 
     docs = pipe.pipe_paint_docs(docs=response, querix=querix, prefix=list(prefixer))
     kods = pipe.pipe_paint_kods(querix=querix, engine=engine)
@@ -343,29 +341,17 @@ def view_representation_keywords():
     data = request.get_data(parse_form_data=True).decode("utf-8-sig")
     data = json.loads(data)
     query = data["topic_name"].strip().lower()
-    querix = processor(query)[1:]
+    query = processor(query)
+    q_idx, querix = int(query[0]), query[1:]
     ic(data)
     engine = store[uid]
     try:
-        response = engine.retrieve_top_k(querix, top_k=100)
+        response = engine.retrieve_top_k(querix, topic_ids=[q_idx], top_k=100)
     except:
         return jsonify({"docs": []})
-    querix = processor(query)[1:]
     kods = pipe.pipe_paint_kods(querix=querix, engine=engine)
 
     return jsonify(kods)
-
-
-def view_clustering():
-    uid = str(session["uid"])
-    filename = Path(session["filename"])
-    # If the
-    dfr = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")
-    dfs = pipe.pipe_polar(dfr, txt_col_name=session["text"], fn=stopper, seps=[":", " "])
-    flow = list(dfs.select("text"))[0]
-    text = " ".join(flow)
-    fig = plotly_wordcloud(text, scale=1)
-    return plotly.io.to_json(fig, pretty=True)
 
 
 def snapshot():
@@ -378,14 +364,14 @@ def snapshot():
     filepath = cache_dir / str(session["uid"]) / (str(filename.stem) + ".xlsx")
     pipe.report_overall_snapshot(query=session["query"], docs=data["docs"], filepath=filepath)
     return jsonify({"filename": str(filename)})
-    # Supposed to return the json with the filename to download
 
 
 __all__ = [
     "upload",
     "iload",
     "view_timeseries",
-    "view_clustering",
+    "view_representation",
+    "view_representation_keywords",
     "snapshot",
     "search",
 ]

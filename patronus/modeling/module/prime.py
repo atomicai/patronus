@@ -3,6 +3,7 @@ import logging
 from collections import namedtuple
 from typing import Dict, List, Optional, Union
 
+import dateparser as dp
 import numpy as np
 from pathos.multiprocessing import ProcessingPool as Pool
 from pathos.multiprocessing import cpu_count
@@ -10,6 +11,7 @@ from pathos.multiprocessing import cpu_count
 from patronus.etc import Document
 from patronus.modeling.mask import IRI, ISFI
 from patronus.storing.module import MemoDocStore
+from patronus.tooling import stl
 
 Paragraph = namedtuple("Paragraph", ["paragraph_id", "document_id", "content", "meta"])
 
@@ -178,13 +180,32 @@ class BM25Okapi(ISFI, IRI):
             )
         return score
 
-    def retrieve_top_k(self, query: Union[str, List[str]], top_k: int = 5):
+    def retrieve_top_k(
+        self, query: Union[str, List[str]], topic_ids: List[int] = None, left_date=None, right_date=None, top_k: int = 5
+    ):
         """Move the `querify` semantic here to simplify api"""
         # TODO: ... rewrite yielding Generator ...
         score = self.querify(query)
-        ranking = np.argsort(score)[::-1][:top_k]  # sort in descending order
-        _ids = [self.connector[i] for i in ranking][:top_k]
-        response = self.store.get_documents_by_id(ids=_ids)
+        ranking = np.argsort(score)[::-1]  # sort in descending order
+        _ids = [self.connector[i] for i in ranking]
+        if topic_ids is None:
+            ranking = ranking[:top_k]
+            _ids = _ids[:top_k]
+        documents = self.store.get_documents_by_id(ids=_ids)
+        it = stl.NIterator(documents)
+        response = []
+        topic_ids = set(topic_ids) if topic_ids else None
+        while it.has_next() and len(response) < top_k:
+            doc = it.next()
+
+            if topic_ids is not None:
+                cur_topic_id = doc.meta["topic_id"]
+                if cur_topic_id not in topic_ids:
+                    continue
+            if left_date is not None:
+                pass
+            response.append(doc)
+
         return response
 
 
