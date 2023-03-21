@@ -16,7 +16,7 @@ from sentence_transformers import SentenceTransformer
 from umap import UMAP
 from werkzeug.utils import secure_filename
 
-from patronus.modeling.module import BM25Okapi
+from patronus.modeling.module import BM25Okapi, ISKeyworder
 from patronus.processing import IPrefixer, IStopper
 from patronus.processing import pipe as ppipe
 from patronus.tdk import pipe
@@ -47,6 +47,7 @@ botpic = BERTopic(
 )
 stopper = IStopper()
 prefixer = IPrefixer()
+iworder = ISKeyworder(model_path="distiluse-base-multilingual-cased-v2")
 
 
 def search():
@@ -326,32 +327,15 @@ def view_representation():
     engine = store[uid]
     response = None
     try:
-        response = engine.retrieve_top_k(querix, topic_ids=[q_idx], top_k=100)
+        left_date, right_date = data.get("from", None), data.get("to", None)
+        response = engine.retrieve_top_k(querix, topic_ids=[q_idx], left_date=left_date, right_date=right_date, top_k=100)
     except:
         return jsonify({"docs": []})
 
     docs = pipe.pipe_paint_docs(docs=response, querix=querix, prefix=list(prefixer))
-    kods = pipe.pipe_paint_kods(querix=querix, engine=engine)
+    kods = pipe.pipe_paint_kods(docs=response, engine=engine, keyworder=iworder)
 
     return jsonify({"docs": docs, "keywords": kods})
-
-
-def view_representation_keywords():
-    uid = str(session["uid"])
-    data = request.get_data(parse_form_data=True).decode("utf-8-sig")
-    data = json.loads(data)
-    query = data["topic_name"].strip().lower()
-    query = processor(query)
-    q_idx, querix = int(query[0]), query[1:]
-    ic(data)
-    engine = store[uid]
-    try:
-        response = engine.retrieve_top_k(querix, topic_ids=[q_idx], top_k=100)
-    except:
-        return jsonify({"docs": []})
-    kods = pipe.pipe_paint_kods(querix=querix, engine=engine)
-
-    return jsonify(kods)
 
 
 def snapshot():
@@ -371,7 +355,6 @@ __all__ = [
     "iload",
     "view_timeseries",
     "view_representation",
-    "view_representation_keywords",
     "snapshot",
     "search",
 ]

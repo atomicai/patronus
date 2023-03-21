@@ -1,3 +1,4 @@
+import itertools
 import random
 from functools import partial
 from pathlib import Path
@@ -81,21 +82,30 @@ def pipe_paint_docs(docs: List[Union[str, Document]], querix: List[str], prefix:
     return response
 
 
-def pipe_paint_kods(querix, engine):
+def pipe_paint_kods(docs, engine, keyworder, window_size: int = 2, left_date=None, right_date=None):
     """
     Supposed to return the distribution of the word accross the whole corpus and highlight the `spike` over specific range
     """
-    response = {}
-    for q in querix:
-        # Local "hike" is meant to be keyword
-        docs = engine.retrieve_top_k(q, top_k=20)
-        # TODO: rewrite scoring and add sorting argument(s)
-        response[q] = [
-            {"timestamp": dp.parse(d.meta["timestamp"]).strftime("%d/%m/%y %H:%M:%S"), "value": random.randint(1, 11)}
-            for d in docs
-        ]
+    response = {}  # TODO: add caching (e.g. LRU and create the keyword store after that)
+    # docs = engine.retrieve_top_k(querix, top_k=20, left_date=left_date, right_date=right_date)
+    # TODO: wrap around to extract keywords and populate the result on top of that
 
-    return response
+    keywords = itertools.chain.from_iterable(keyworder.extract([d.content for d in docs]))
+    qij = {key[0]: list() for key in keywords}
+    kw = KeywordProcessor()
+    kw.add_keywords_from_list(list(qij.keys()))
+    for doc in docs:  # TODO: rewrite using windowed bin(s)
+        # Local "hike" is meant to be keyword
+        # TODO: rewrite scoring and add sorting argument(s)
+        # Extract `group` with `window_size`
+        timestamp = dp.parse(doc.meta["timestamp"]).strftime("%d/%m/%y %H:%M:%S")
+        content = doc.content
+        kords = kw.extract_keywords(sentence=content, span_info=True)
+
+        for hit in kords:
+            w, lo, hi = hit
+            qij[w].append({"timestamp": timestamp, "value": random.randint(1, 11)})
+    return qij
 
 
 def c_tf_idf(documents, m, ngram_range=(1, 1), stopwords: Iterable = None):

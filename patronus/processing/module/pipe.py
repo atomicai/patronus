@@ -2,10 +2,26 @@
 Here are all the auxiliary functions being used throughout the processing pipeline.
 """
 from functools import partial
-from typing import Dict
+from typing import ClassVar, Dict
 
 import dateparser as dp
 import polars as pl
+
+from patronus.etc.schema import Document
+
+
+def pipe_cmp_date(dx: ClassVar[Document], dy: ClassVar[Document]):
+    """
+    Comparator to sort the given `documents` by datetime attribute, located in `meta` subfield
+    Args:
+        dx (_type_): Document
+        dy (_type_): Document
+    """
+    predate = dp.parse(dx.meta["timestamp"])
+    curdate = dp.parse(dy.meta["timestamp"])
+    if predate >= curdate:
+        return -1
+    return 1
 
 
 def pipe_nullifier(x):
@@ -54,4 +70,4 @@ def pipe_cmp(_df, date_column="datetime", pivot_date="2022-12-11 22:40:41", wind
     return _df.drop(["match"])
 
 
-__all__ = ["pipe_nullifier", "pipe_polar"]
+__all__ = ["pipe_nullifier", "pipe_polar", "pipe_cmp_date"]

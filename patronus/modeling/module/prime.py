@@ -1,6 +1,7 @@
 import collections
 import logging
 from collections import namedtuple
+from functools import cmp_to_key
 from typing import Dict, List, Optional, Union
 
 import dateparser as dp
@@ -10,6 +11,7 @@ from pathos.multiprocessing import cpu_count
 
 from patronus.etc import Document
 from patronus.modeling.mask import IRI, ISFI
+from patronus.processing import pipe
 from patronus.storing.module import MemoDocStore
 from patronus.tooling import stl
 
@@ -171,7 +173,7 @@ class BM25Okapi(ISFI, IRI):
             # Instead it must use malloc and then copy the repeated to all elements in the array
             # (thus forcing immediate allocation).
             tf_score = np.zeros(doc_len.shape)
-            for occurence in self.tok[qx]:  # For every document having term `qx` as well as the ``
+            for occurence in self.tok[qx]:  # For every document having term `qx`
                 pos, token_score = occurence
                 tf_score[pos] = token_score
 
@@ -185,25 +187,35 @@ class BM25Okapi(ISFI, IRI):
     ):
         """Move the `querify` semantic here to simplify api"""
         # TODO: ... rewrite yielding Generator ...
+        left_date = (
+            dp.parse(left_date, settings={"DATE_ORDER": "DMY"}) if left_date is not None and isinstance(left_date, str) else None
+        )
+        right_date = (
+            dp.parse(right_date, settings={"DATE_ORDER": "DMY"})
+            if right_date is not None and isinstance(right_date, str)
+            else None
+        )
         score = self.querify(query)
-        ranking = np.argsort(score)[::-1]  # sort in descending order
+        ranking = np.argsort(score)[::-1]  # sort in descending order idx - wise
         _ids = [self.connector[i] for i in ranking]
-        if topic_ids is None:
-            ranking = ranking[:top_k]
-            _ids = _ids[:top_k]
+        ranking = ranking[:top_k]
+        _ids = _ids[:top_k]
         documents = self.store.get_documents_by_id(ids=_ids)
+        documents = sorted(documents, key=cmp_to_key(pipe.pipe_cmp_date))
         it = stl.NIterator(documents)
         response = []
         topic_ids = set(topic_ids) if topic_ids else None
         while it.has_next() and len(response) < top_k:
             doc = it.next()
-
+            cur_timestamp = dp.parse(doc.meta["timestamp"])
             if topic_ids is not None:
                 cur_topic_id = doc.meta["topic_id"]
                 if cur_topic_id not in topic_ids:
                     continue
-            if left_date is not None:
-                pass
+            if left_date is not None and cur_timestamp < left_date:
+                continue
+            if right_date is not None and cur_timestamp > right_date:
+                continue
             response.append(doc)
 
         return response
