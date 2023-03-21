@@ -26,4 +26,12 @@ class ISFI(INI):
     """Indexing using Speciall Features Interface"""
 
 
-__all__ = ["IRI", "INI", "INNI", "ISFI"]
+class IKeyworder(abc.ABC):
+    """Keyword extracting from the textual string"""
+
+    @abc.abstractmethod
+    def extract(self, x: Union[str, List[str]], **kwargs):
+        pass
+
+
+__all__ = ["IRI", "INI", "INNI", "ISFI", "IKeyworder"]

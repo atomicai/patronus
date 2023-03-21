@@ -104,9 +104,9 @@ def convert_date_to_rfc3339(date: str) -> str:
     return converted_date
 
 
-def docify(t: str) -> Document:
+def doc(t: str) -> Document:
     """Wraps the string in `Document` object to make it consistent across project"""
     return Document.from_dict({"content": t})
 
 
-__all__ = ["get_batches_from_generator", "convert_date_to_rfc3339", "grouper"]
+__all__ = ["get_batches_from_generator", "convert_date_to_rfc3339", "grouper", "doc"]
