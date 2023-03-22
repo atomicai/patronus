@@ -46,7 +46,7 @@ def initialize_device_settings(
                         parameter is not used and a single cpu device is used for inference.
     """
     if use_cuda is False:  # Note that it could be None, in which case we also want to just skip this step.
-        devices_to_use = [torch.device("cpu")]
+        devices_to_use = [torch.device("mps") if torch.has_mps else torch.device("cpu")]
         n_gpu = 0
     elif devices:
         if not isinstance(devices, list):
@@ -66,7 +66,7 @@ def initialize_device_settings(
                 devices_to_use = [torch.device("cuda:0")]
                 n_gpu = 1
         else:
-            devices_to_use = [torch.device("cpu")]
+            devices_to_use = [torch.device("mps") if torch.has_mps else torch.device("cpu")]
             n_gpu = 0
     else:
         devices_to_use = [torch.device("cuda", local_rank)]
