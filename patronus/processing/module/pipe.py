@@ -20,8 +20,8 @@ def pipe_cmp_date(dx: ClassVar[Document], dy: ClassVar[Document]):
     predate = dp.parse(dx.meta["timestamp"])
     curdate = dp.parse(dy.meta["timestamp"])
     if predate >= curdate:
-        return -1
-    return 1
+        return 1
+    return -1
 
 
 def pipe_nullifier(x):
@@ -54,9 +54,7 @@ def pipe_cmp(_df, date_column="datetime", pivot_date="2022-12-11 22:40:41", wind
     pivot_day = dp.parse(pivot_date) if isinstance(pivot_date, str) else pivot_date
     start_day = pivot_day.day - window_size
     end_day = pivot_day.day + window_size
-    start_date = dp.parse(
-        f"{pivot_day.year}/{pivot_day.month}/{start_day} {pivot_day.hour}:{pivot_day.minute}:{pivot_day.second}"
-    )
+    start_date = dp.parse(f"{pivot_day.year}/{pivot_day.month}/{start_day} {pivot_day.hour}:{pivot_day.minute}:{pivot_day.second}")
     end_date = dp.parse(f"{pivot_day.year}/{pivot_day.month}/{end_day} {pivot_day.hour}:{pivot_day.minute}:{pivot_day.second}")
     _df = _df.with_columns(
         [

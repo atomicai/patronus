@@ -1,3 +1,4 @@
+import datetime as dt
 import itertools
 import random
 from functools import partial
@@ -82,29 +83,44 @@ def pipe_paint_docs(docs: List[Union[str, Document]], querix: List[str], prefix:
     return response
 
 
-def pipe_paint_kods(docs, engine, keyworder, window_size: int = 2, left_date=None, right_date=None):
+def pipe_paint_kods(docs, engine, keyworder, window_size: int = 2, left_date: str = None, right_date: str = None):
     """
     Supposed to return the distribution of the word accross the whole corpus and highlight the `spike` over specific range
     """
-    response = {}  # TODO: add caching (e.g. LRU and create the keyword store after that)
-    # docs = engine.retrieve_top_k(querix, top_k=20, left_date=left_date, right_date=right_date)
-    # TODO: wrap around to extract keywords and populate the result on top of that
 
-    keywords = itertools.chain.from_iterable(keyworder.extract([d.content for d in docs]))
+    keywords = keyworder.extract([d.content for d in docs])
+    documents = engine.store.get_all_documents()
     qij = {key[0]: list() for key in keywords}
-    kw = KeywordProcessor()
-    kw.add_keywords_from_list(list(qij.keys()))
-    for doc in docs:  # TODO: rewrite using windowed bin(s)
-        # Local "hike" is meant to be keyword
-        # TODO: rewrite scoring and add sorting argument(s)
-        # Extract `group` with `window_size`
-        timestamp = dp.parse(doc.meta["timestamp"]).strftime("%d/%m/%y %H:%M:%S")
-        content = doc.content
-        kords = kw.extract_keywords(sentence=content, span_info=True)
+    # kw = KeywordProcessor()
+    # kw.add_keywords_from_list(list(qij.keys()))
+    left_date = dt.datetime.min if left_date is None else dp.parse(left_date)
+    right_date = dt.datetime.max if right_date is None else dp.parse(right_date)
 
-        for hit in kords:
-            w, lo, hi = hit
-            qij[w].append({"timestamp": timestamp, "value": random.randint(1, 11)})
+    for k, _ in keywords:
+        posix = engine.tok[k]  # idx, number of occurence(s)
+        _in_range: bool = True
+        lo: int = 0
+        while _in_range and lo < len(posix):
+            ix = posix[lo][0]
+            timing = dp.parse(documents[ix].meta["timestamp"])
+            if timing < left_date:
+                lo += 1
+                continue
+            elif timing > right_date:
+                _in_range = False
+            hi = lo + 1
+            while (
+                hi < len(posix)
+                and dp.parse(documents[posix[hi][0]].meta["timestamp"]) - dt.timedelta(days=window_size) < timing
+                and dp.parse(documents[posix[hi][0]].meta["timestamp"]) <= right_date
+            ):
+                hi += 1
+            if _in_range:
+                mid = lo + ((hi - lo) >> 1)
+                midx = posix[mid][0]
+                timestamp = dp.parse(documents[midx].meta["timestamp"])
+                qij[k].append({"timestamp": timestamp.strftime("%d/%m/%y %H:%M:%S"), "value": hi - lo})
+                lo = hi
     return qij
 
 

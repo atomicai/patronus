@@ -47,7 +47,7 @@ botpic = BERTopic(
 )
 stopper = IStopper()
 prefixer = IPrefixer()
-iworder = ISKeyworder(model_path="distiluse-base-multilingual-cased-v2")
+iworder = ISKeyworder(stopwords=stopper)
 
 
 def search():
@@ -200,9 +200,8 @@ def view_timeseries():
     except:  # add logging to determine futher the problem.
         ic(f"Failed to sort by datetime file {uid}-{filename.stem}")
     # <--->
-    dfs = ppipe.pipe_polar(
-        dfr, txt_col_name=tecol, fn=stopper, seps=[":", " "]
-    )  # dataframe to which `IStopper` had been applied
+    dfr = dfr.groupby("text").agg([pl.col("datetime").last()])
+    dfs = ppipe.pipe_polar(dfr, txt_col_name=tecol, fn=stopper, seps=[":", " "])  # dataframe to which `IStopper` had been applied
     ic("Stopwords removal is completed")
     dfs = (
         dfs.with_columns([pl.col(tecol).apply(ppipe.pipe_nullifier).alias("is_empty")])
@@ -227,11 +226,9 @@ def view_timeseries():
         .groupby("Topic")
         .agg(pl.col("Doc").apply(lambda x: " ".join(x)))
     )
-    tf_idf, count = pipe.c_tf_idf(
-        [str(d) for d in list(docs_per_topic.select(pl.col("Doc")))[0]], m=len(docs), stopwords=stopper
-    )
+    tf_idf, count = pipe.c_tf_idf([str(d) for d in list(docs_per_topic.select(pl.col("Doc")))[0]], m=len(docs), stopwords=stopper)
     top_n_words = pipe.extract_top_n_words_per_topic(tf_idf, count, docs_per_topic, n=5)
-    # Мы показываем польтзователю,, что идет индексация и что-то считается.
+    # Мы показываем польтзователю, что идет индексация и что-то считается.
     topics_over_time = botpic.topics_over_time(docs, times, nr_bins=20)
     plopics = pl.from_pandas(topics_over_time)
     plopics = plopics.sort("Frequency")
@@ -328,13 +325,14 @@ def view_representation():
     response = None
     try:
         left_date, right_date = data.get("from", None), data.get("to", None)
-        response = engine.retrieve_top_k(querix, topic_ids=[q_idx], left_date=left_date, right_date=right_date, top_k=100)
+        response = engine.retrieve_top_k(querix, topic_ids=[q_idx], left_date=left_date, right_date=right_date, top_k=250)
     except:
         return jsonify({"docs": []})
 
     docs = pipe.pipe_paint_docs(docs=response, querix=querix, prefix=list(prefixer))
-    kods = pipe.pipe_paint_kods(docs=response, engine=engine, keyworder=iworder)
-
+    ic(f"Получено {len(docs)} примеров в рамках запроса по тематике {q_idx} c проставленными датами")
+    kods = pipe.pipe_paint_kods(docs=response, engine=engine, keyworder=iworder, left_date=left_date, right_date=right_date)
+    ic(f"Подсчитаны ключевые слова")
     return jsonify({"docs": docs, "keywords": kods})
 
 
