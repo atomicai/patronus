@@ -1,21 +1,29 @@
 from pathlib import Path
 from typing import List, Union
 
-from keybert import KeyBERT
+import yake
 
 from patronus.modeling.mask import IKeyworder
 from patronus.tooling import stl
 
 
 class ISKeyworder(IKeyworder):
-    def __init__(self, model_path: Union[str, Path], use_mmr: bool = False, diversity=0.7, stopwords=None):
+    def __init__(
+        self,
+        window_size: int = 1,
+        stopwords=None,
+        top_k: int = 10,
+        n: int = 1,
+    ):
         super(ISKeyworder, self).__init__()
-        self.model = KeyBERT(str(Path(model_path)))
-        self.config = {"use_mmr": use_mmr, "diversity": diversity}
-        self.stopwords = [] if stopwords is None else list(stl.NIterator(stopwords))
+        stopwords = [] if stopwords is None else list(stl.NIterator(stopwords))
+
+        self.model = yake.KeywordExtractor(n=n, stopwords=stopwords, windowsSize=window_size, top=top_k)
 
     def extract(self, docs: Union[str, List[str]], **kwargs):
-        response = self.model.extract_keywords(docs, stop_words=self.stopwords, **self.config)
+        if isinstance(docs, List):
+            docs = " ".join(docs)
+        response = self.model.extract_keywords(docs)
         return response
 
 
