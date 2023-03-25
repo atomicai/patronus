@@ -23,7 +23,7 @@ class MemoDocStore(BaseDocStore):
         return_embedding: bool = False,
         similarity: str = "dot_product",
         progress_bar: bool = True,
-        duplicate_documents: str = "fail",
+        duplicate_documents: str = "skip",
         use_gpu: bool = True,
         scoring_batch_size: int = 10_000,
         device: str = "cpu",
