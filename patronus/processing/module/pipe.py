@@ -30,18 +30,39 @@ def pipe_nullifier(x):
 
 def std_map(mapping: Dict):
     cursor = pl.element()
-    for pre, nex in mapping.values():
+    for pre, nex in mapping.items():
         cursor = cursor.str.replace_all(pre, str(nex), literal=True)
     return cursor
 
 
-def pipe_silo(df, txt_col_name, wordlist):
-    kord = {w: "" for w in wordlist}
-    for i, sep in enumerate((":", " ")):
-        df = df.with_column(pl.col(txt_col_name).str.split(sep).alias(f"_re{str(i)}"))
-        df = df.with_column(pl.col(f"_re{str(i)}").arr.join(" ").alias(f"re{str(i)}"))
-        df = df.drop([pl.col(txt_col_name), pl.col(f"_re{str(i)}")])
-        df = df.rename({f"_re{str(i)}": txt_col_name})
+# TODO: add normal form checking
+def std_replace(x: str, wordlist):
+    r = []
+    for w in x.split(" "):
+        if w.strip().lower() not in wordlist and not w.strip().isdigit():
+            r.append(w)
+    return " ".join(r)
+
+
+def pipe_silo(df, txt_col_name, syms, wordlist):
+    lidx: int = None
+    preidx: int = None
+    for i, sep in enumerate(syms):
+        if sep != " ":
+            pre_col_name = f"re{str(lidx)}" if lidx is not None else txt_col_name
+            df = df.with_column(pl.col(pre_col_name).str.split(sep).alias(f"_re{str(i)}"))
+            df = df.with_column(pl.col(f"_re{str(i)}").arr.join(" ").alias(f"re{str(i)}"))
+            df = df.drop([f"_re{str(i)}"])
+            if pre_col_name != txt_col_name:
+                df = df.drop([pre_col_name])
+            lidx = i
+        df = df.with_column(pl.col(f"re{str(lidx)}").apply(partial(std_replace, wordlist=set(wordlist))).alias("silo"))
+    return df
+
+
+def _silo(df, txt_col_name, wordlist):
+    df = df.with_column(pl.col(txt_col_name).apply(partial(std_replace, wordlist=set(wordlist))).alias("silo"))
+
     return df
 
 
