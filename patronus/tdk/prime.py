@@ -5,6 +5,7 @@ import os
 import uuid
 from pathlib import Path
 
+import hdbscan
 import plotly
 import polars as pl
 import pyarrow.parquet as pq
@@ -40,10 +41,30 @@ def processor(x, seps=("_", " ")):
     return x.split(" ")
 
 
+class OS:
+    def __init__(self, klass, config):
+        self.klass = klass
+        self.config = config
+
+    def fire(self, **kwargs):
+        for k, v in kwargs.items():
+            self.config[k] = v
+        return self.klass(**self.config)
+
+
 model = SentenceTransformer("paraphrase-multilingual-mpnet-base-v2", device=devices[0])
 store = collections.defaultdict()
-botpic = BERTopic(
-    language="multilingual", n_gram_range=(1, 2), min_topic_size=3, umap_model=UMAP(random_state=42), embedding_model=model
+botpic = OS(
+    BERTopic,
+    config=dict(
+        umap_model=UMAP(
+            n_neighbors=30,
+            random_state=42,
+            metric="cosine",
+        ),
+        n_gram_range=(1, 2),
+        language="multilingual",
+    ),
 )
 stopper = IStopper()
 prefixer = IPrefixer()
@@ -67,15 +88,6 @@ def search():
     else:
         response = pipe.pipe_paint_docs(docs=response, querix=querix, prefix=prefixer)
     return jsonify({"docs": response})
-
-
-# "title": str vs
-# "label": str
-"text"
-# "doc_score" -> str
-"timestamp"
-# "highlight" -> [{"lo": 1, "hi": 5, "score": "abracadabra", "color": 1}]
-# "highlight_idx" -> 0
 
 
 def upload():
@@ -184,52 +196,42 @@ def view():
 def view_timeseries():
     uid = str(session["uid"])
     filename = Path(session["filename"])
-    # fname = Path(filename)
-    # TODO: Push here to the queue
-    # Here we fetch from queue (BROKER) until the required message is receieved
-
     dfr = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")  # raw without cleaning, etc..
     tecol, dacol = session["text"], session["datetime"]
-    dfr = (
-        dfr.with_columns([pl.col(tecol).is_null().alias("is_empty")])
-        .filter(~pl.col("is_empty"))
-        .select([pl.col(tecol), pl.col(dacol)])
-    )
+    dfr = dfr.filter(~pl.col(tecol).is_null() & ~pl.col(dacol).is_null())
     try:
         dfr = dfr.sort([dacol])
     except:  # add logging to determine futher the problem.
         ic(f"Failed to sort by datetime file {uid}-{filename.stem}")
-    # <--->
-    dfr = dfr.groupby("text").agg([pl.col("datetime").last()])
-    dfs = ppipe.pipe_polar(dfr, txt_col_name=tecol, fn=stopper, seps=[":", " "])  # dataframe to which `IStopper` had been applied
-    ic("Stopwords removal is completed")
-    dfs = (
-        dfs.with_columns([pl.col(tecol).apply(ppipe.pipe_nullifier).alias("is_empty")])
-        .filter(~pl.col("is_empty"))
-        .select([pl.col(tecol), pl.col(dacol)])
+    dfr = ppipe.pipe_silo(dfr, tecol, syms=[":"], wordlist=set(stopper))
+
+    dfr = (
+        dfr.with_row_count()
+        .with_columns([pl.col("row_nr").last().over("silo").alias("idx_per_unique")])
+        .filter(pl.col("row_nr") == pl.col("idx_per_unique"))
     )
-    ic(f"Final size after preprocessing is {str(dfs.shape)}")
-    # Maybe there is a processed file already?
-    # df = next(get_data(data_dir=cache_dir / uid, filename=fname.stem, ext=fname.suffix))
-    # docs, times = df["text"].tolist(), df["datetime"].tolist()
+    ic("Stopwords removal is completed")
+    ic(f"Final size after preprocessing is {str(dfr.shape)}")
     docs, times, raws = (
-        [str(d) for d in list(dfs.select(session["text"]))[0]],
-        [str(d) for d in list(dfs.select(session["datetime"]))[0]],
+        [str(d) for d in list(dfr.select("silo"))[0]],
+        [str(d) for d in list(dfr.select(session["datetime"]))[0]],
         [str(d) for d in list(dfr.select(session["text"]))[0]],
     )
 
     embeddings = model.encode(docs, show_progress_bar=True, device=devices[0])
-    topics, probs = botpic.fit_transform(docs, embeddings=embeddings)  # we use model under the hood
-    info = botpic.get_topic_info()
+    _botpic = botpic.fire(min_topic_size=min(25, len(docs) // 12))
+    topics, probs = _botpic.fit_transform(docs, embeddings=embeddings)  # we use model under the hood
+    info = _botpic.get_topic_info()
     docs_per_topic = (
         pl.DataFrame({"Doc": docs, "Topic": topics, "Id": range(len(docs))})
         .groupby("Topic")
         .agg(pl.col("Doc").apply(lambda x: " ".join(x)))
     )
-    tf_idf, count = pipe.c_tf_idf([str(d) for d in list(docs_per_topic.select(pl.col("Doc")))[0]], m=len(docs), stopwords=stopper)
+    tf_idf, count = pipe.c_tf_idf(
+        [str(d) for d in list(docs_per_topic.select(pl.col("Doc")))[0]], m=len(docs), stopwords=IStopper()
+    )
     top_n_words = pipe.extract_top_n_words_per_topic(tf_idf, count, docs_per_topic, n=5)
-    # Мы показываем польтзователю, что идет индексация и что-то считается.
-    topics_over_time = botpic.topics_over_time(docs, times, nr_bins=20)
+    topics_over_time = _botpic.topics_over_time(docs, times, nr_bins=20)
     plopics = pl.from_pandas(topics_over_time)
     plopics = plopics.sort("Frequency")
     engine = BM25Okapi(processor=processor)
@@ -268,17 +270,13 @@ def view_timeseries():
             message="Во вложении файл с аналитикой.\nС уважением, Команда корневых причин.",
             author="itarlinskiy@yandex.ru",
         )
-    fig = botpic.visualize_topics_over_time(topics_over_time, top_n_topics=10)
+    fig = _botpic.visualize_topics_over_time(topics_over_time, top_n_topics=10)
 
     # TODO:
-    session["plopics"] = botpic.visualize_topics(width=1250, height=450)
-    session["examples"] = botpic.visualize_documents(raws, width=1250, height=450, embeddings=embeddings)
-    session["tropics"] = botpic.visualize_barchart(width=312.5, height=225, title="Topic Word Scores")
+    session["plopics"] = _botpic.visualize_topics(width=1250, height=450)
+    session["examples"] = _botpic.visualize_documents(raws, width=1250, height=450, embeddings=embeddings)
+    session["tropics"] = _botpic.visualize_barchart(width=312.5, height=225, title="Topic Word Scores")
 
-    # TODO:
-    # Первый график всегда будет eager и ему тоже нужен будет response_type: docs
-    # Остальные графики lazy после первого (первый тоже eager, т.к. клиент его должен сразу видеть)
-    # Их
     response = [
         {
             "figure": json.loads(plotly.io.to_json(plotly_wordcloud(" ".join(docs), scale=1), pretty=True)),

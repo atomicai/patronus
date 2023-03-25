@@ -24,8 +24,6 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-# np.random.seed(22)
-
 logger = logging.getLogger(__name__)
 
 dotenv.load_dotenv()

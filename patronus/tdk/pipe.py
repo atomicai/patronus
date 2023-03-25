@@ -1,6 +1,5 @@
 import datetime as dt
 import itertools
-import random
 from functools import partial
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Union
@@ -54,7 +53,7 @@ def pipe_paint_docs(docs: List[Union[str, Document]], querix: List[str], prefix:
         for pref in prefix:
             kw.add_keyword(pref, "\n" + pref)
 
-    preview = {k: i + 1 for i, k in enumerate(kw.get_all_keywords().values())}  # PREfix VIEW
+    preview = {k: i + 1 for i, k in enumerate(kw.get_all_keywords().values())}  # PRE-fix- VIEW
     kw.add_keywords_from_list(querix)
 
     for doc in response:
@@ -95,7 +94,6 @@ def pipe_paint_kods(docs, engine, keyworder, window_size: int = 2, left_date: st
     # kw.add_keywords_from_list(list(qij.keys()))
     left_date = dt.datetime.min if left_date is None else dp.parse(left_date)
     right_date = dt.datetime.max if right_date is None else dp.parse(right_date)
-
     for k, _ in keywords:
         posix = engine.tok[k]  # idx, number of occurence(s)
         _in_range: bool = True
@@ -111,6 +109,7 @@ def pipe_paint_kods(docs, engine, keyworder, window_size: int = 2, left_date: st
             hi = lo + 1
             while (
                 hi < len(posix)
+                and posix[hi][0] < len(documents)
                 and dp.parse(documents[posix[hi][0]].meta["timestamp"]) - dt.timedelta(days=window_size) < timing
                 and dp.parse(documents[posix[hi][0]].meta["timestamp"]) <= right_date
             ):
