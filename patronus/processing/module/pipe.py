@@ -1,6 +1,7 @@
 """
 Here are all the auxiliary functions being used throughout the processing pipeline.
 """
+import string
 from functools import partial
 from typing import ClassVar, Dict
 
@@ -24,6 +25,18 @@ def pipe_cmp_date(dx: ClassVar[Document], dy: ClassVar[Document]):
     return -1
 
 
+def pipe_std_parse(d):
+    time = None
+    if isinstance(d, Document):
+        time = d.meta["timestamp"]
+    else:
+        time = str(d)
+    _dt = dp.parse(time)
+    d, m, y = _dt.strftime("%d"), _dt.strftime("%m"), _dt.strftime("%y")
+    h, m, s = _dt.strftime("%H"), _dt.strftime("%M"), _dt.strftime("%S")
+    return f"{d}/{m}/{y} {h}:{m}:{s}"
+
+
 def pipe_nullifier(x):
     return x == pl.Null() or str(x).strip() == ""
 
@@ -39,7 +52,9 @@ def std_map(mapping: Dict):
 def std_replace(x: str, wordlist):
     r = []
     for w in x.split(" "):
-        if w.strip().lower() not in wordlist and not w.strip().isdigit():
+        w = w.strip()
+        _w = "".join([ch for ch in w if ch not in string.punctuation])
+        if _w.strip().lower() not in wordlist and not _w.strip().isdigit():
             r.append(w)
     return " ".join(r)
 
@@ -108,4 +123,4 @@ def pipe_cmp(_df, date_column="datetime", pivot_date="2022-12-11 22:40:41", wind
     return _df.drop(["match"])
 
 
-__all__ = ["pipe_nullifier", "pipe_polar", "pipe_cmp_date", "std_map"]
+__all__ = ["pipe_nullifier", "pipe_polar", "pipe_cmp_date", "std_map", "pipe_std_parse"]

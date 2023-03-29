@@ -216,7 +216,7 @@ def view_timeseries():
         [str(d) for d in list(dfr.select("silo"))[0]],
         [str(d) for d in list(dfr.select(session["datetime"]))[0]],
         [str(d) for d in list(dfr.select(session["text"]))[0]],
-    )
+    )  # TODO: add wrapper around to cast times to the same format.
 
     embeddings = model.encode(docs, show_progress_bar=True, device=devices[0])
     _botpic = botpic.fire(min_topic_size=min(25, len(docs) // 12))
@@ -237,7 +237,6 @@ def view_timeseries():
     engine = BM25Okapi(processor=processor)
     engine.index([{"content": d, "timestamp": t, "raw": r, "topic_id": c} for d, t, r, c in zip(docs, times, raws, topics)])
     store[uid] = engine
-    list(plopics["Timestamp"].unique())
     _plopics = (
         plopics.sort("Frequency")
         .groupby("Topic")

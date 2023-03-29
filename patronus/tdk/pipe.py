@@ -1,8 +1,7 @@
 import datetime as dt
 import itertools
-from functools import partial
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Union
+from typing import Dict, Iterable, List, Union
 
 import dateparser as dp
 import numpy as np
@@ -15,25 +14,6 @@ from patronus.etc import Document
 from patronus.processing import KeywordProcessor
 from patronus.tooling import Email, stl
 from patronus.viewing.module import IFormat
-
-
-def _process_polar(chunk: Dict, txt_col_name: str, fn: Callable, seps: List[str]):
-    x = chunk[txt_col_name]
-    y = fn(x, seps=seps)
-    return y
-
-
-def pipe_polar(df, txt_col_name, fn, seps):
-    df = df.select(
-        [
-            pl.struct(list(df.columns))
-            .alias(txt_col_name)
-            .apply(partial(_process_polar, txt_col_name=txt_col_name, fn=fn, seps=seps)),
-            pl.exclude(txt_col_name),
-        ]
-    )
-
-    return df
 
 
 def pipe_paint_docs(docs: List[Union[str, Document]], querix: List[str], prefix: List[str] = None):
@@ -82,7 +62,7 @@ def pipe_paint_docs(docs: List[Union[str, Document]], querix: List[str], prefix:
     return response
 
 
-def pipe_paint_kods(docs, engine, keyworder, window_size: int = 2, left_date: str = None, right_date: str = None):
+def pipe_paint_kods(docs, engine, keyworder, window_size: int = 1, left_date: str = None, right_date: str = None):
     """
     Supposed to return the distribution of the word accross the whole corpus and highlight the `spike` over specific range
     """
@@ -101,11 +81,12 @@ def pipe_paint_kods(docs, engine, keyworder, window_size: int = 2, left_date: st
         while _in_range and lo < len(posix):
             ix = posix[lo][0]
             timing = dp.parse(documents[ix].meta["timestamp"])
-            if timing < left_date:
-                lo += 1
+            if timing < left_date or timing > right_date:
+                if timing < left_date:
+                    lo += 1
+                else:
+                    _in_range = False
                 continue
-            elif timing > right_date:
-                _in_range = False
             hi = lo + 1
             while (
                 hi < len(posix)
@@ -114,12 +95,11 @@ def pipe_paint_kods(docs, engine, keyworder, window_size: int = 2, left_date: st
                 and dp.parse(documents[posix[hi][0]].meta["timestamp"]) <= right_date
             ):
                 hi += 1
-            if _in_range:
-                mid = lo + ((hi - lo) >> 1)
-                midx = posix[mid][0]
-                timestamp = dp.parse(documents[midx].meta["timestamp"])
-                qij[k].append({"timestamp": timestamp.strftime("%d/%m/%y %H:%M:%S"), "value": hi - lo})
-                lo = hi
+            mid = lo + ((hi - lo) >> 1)
+            midx = posix[mid][0]
+            timestamp = dp.parse(documents[midx].meta["timestamp"])
+            qij[k].append({"timestamp": timestamp.strftime("%d/%m/%y %H:%M:%S"), "value": hi - lo})
+            lo = hi
     return qij
 
 
