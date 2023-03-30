@@ -204,11 +204,12 @@ def view_timeseries():
     except:  # add logging to determine futher the problem.
         ic(f"Failed to sort by datetime file {uid}-{filename.stem}")
     dfr = ppipe.pipe_silo(dfr, tecol, syms=[":"], wordlist=set(stopper))
-
+    print("silo")
     dfr = (
         dfr.with_row_count()
         .with_columns([pl.col("row_nr").last().over("silo").alias("idx_per_unique")])
         .filter(pl.col("row_nr") == pl.col("idx_per_unique"))
+        .with_columns([pl.col(dacol).str.strptime(pl.Datetime, "%d/%m/%Y %HH:%MM:%SS").alias(f"_{dacol}")])
     )
     ic("Stopwords removal is completed")
     ic(f"Final size after preprocessing is {str(dfr.shape)}")
@@ -218,6 +219,7 @@ def view_timeseries():
         [str(d) for d in list(dfr.select(session["text"]))[0]],
     )  # TODO: add wrapper around to cast times to the same format.
 
+    # times = [ppipe.pipe_std_parse(_t) for _t in times]
     embeddings = model.encode(docs, show_progress_bar=True, device=devices[0])
     _botpic = botpic.fire(min_topic_size=min(25, len(docs) // 12))
     topics, probs = _botpic.fit_transform(docs, embeddings=embeddings)  # we use model under the hood
@@ -328,9 +330,14 @@ def view_representation():
 
     docs = pipe.pipe_paint_docs(docs=response, querix=querix, prefix=list(prefixer))
     ic(f"Получено {len(docs)} примеров в рамках запроса по тематике {q_idx} c проставленными датами")
-    kods = pipe.pipe_paint_kods(docs=response, engine=engine, keyworder=iworder, left_date=left_date, right_date=right_date)
-    ic(f"Подсчитаны ключевые слова")
-    return jsonify({"docs": docs, "keywords": kods})
+    if left_date is None and right_date is None:
+        kods = pipe.pipe_paint_kods(docs=response, engine=engine, keyworder=iworder, left_date=left_date, right_date=right_date)
+        return jsonify({"docs": docs, "keywords": kods})
+    return jsonify(
+        {
+            "docs": docs,
+        }
+    )
 
 
 def snapshot():

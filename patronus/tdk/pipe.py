@@ -98,7 +98,9 @@ def pipe_paint_kods(docs, engine, keyworder, window_size: int = 1, left_date: st
             mid = lo + ((hi - lo) >> 1)
             midx = posix[mid][0]
             timestamp = dp.parse(documents[midx].meta["timestamp"])
-            qij[k].append({"timestamp": timestamp.strftime("%d/%m/%y %H:%M:%S"), "value": hi - lo})
+            qij[k].append(
+                {"timestamp": timestamp.strftime("%d/%m/%y %H:%M:%S"), "value": hi - lo, "relative": np.random.randint(0, 100)}
+            )
             lo = hi
     return qij
 

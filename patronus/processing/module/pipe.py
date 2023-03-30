@@ -41,6 +41,13 @@ def pipe_nullifier(x):
     return x == pl.Null() or str(x).strip() == ""
 
 
+def std_date(x):
+    _dt = dp.parse(x, settings={'DATE_ORDER': 'MDY'})
+    d, m, y = _dt.strftime("%d"), _dt.strftime("%m"), _dt.strftime("%Y")
+    hh, mm, ss = _dt.strftime("%H"), _dt.strftime("%M"), _dt.strftime("%S")
+    return f"{d}/{m}/{y} {hh}:{mm}:{ss}"
+
+
 def std_map(mapping: Dict):
     cursor = pl.element()
     for pre, nex in mapping.items():
@@ -123,4 +130,4 @@ def pipe_cmp(_df, date_column="datetime", pivot_date="2022-12-11 22:40:41", wind
     return _df.drop(["match"])
 
 
-__all__ = ["pipe_nullifier", "pipe_polar", "pipe_cmp_date", "std_map", "pipe_std_parse"]
+__all__ = ["pipe_nullifier", "pipe_polar", "pipe_cmp_date", "std_map", "pipe_std_parse", "std_date"]

@@ -25,7 +25,7 @@ setup(
     version="1.0.0",
     install_requires=list(map(str, pkg_resources.parse_requirements(open("requirements.txt")))),
     extras_require=extras_require,
-    python_requires=">=3.9",
+    python_requires=">=3.7",
     packages=setuptools.find_packages(),
     include_package_data=True,
 )
