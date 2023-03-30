@@ -60,6 +60,7 @@ botpic = OS(
         umap_model=UMAP(
             n_neighbors=30,
             random_state=42,
+            init="random",
             metric="cosine",
         ),
         n_gram_range=(1, 2),
@@ -209,7 +210,6 @@ def view_timeseries():
         dfr.with_row_count()
         .with_columns([pl.col("row_nr").last().over("silo").alias("idx_per_unique")])
         .filter(pl.col("row_nr") == pl.col("idx_per_unique"))
-        .with_columns([pl.col(dacol).str.strptime(pl.Datetime, "%d/%m/%Y %HH:%MM:%SS").alias(f"_{dacol}")])
     )
     ic("Stopwords removal is completed")
     ic(f"Final size after preprocessing is {str(dfr.shape)}")
@@ -333,11 +333,7 @@ def view_representation():
     if left_date is None and right_date is None:
         kods = pipe.pipe_paint_kods(docs=response, engine=engine, keyworder=iworder, left_date=left_date, right_date=right_date)
         return jsonify({"docs": docs, "keywords": kods})
-    return jsonify(
-        {
-            "docs": docs,
-        }
-    )
+    return jsonify({"docs": docs})
 
 
 def snapshot():

@@ -68,7 +68,6 @@ def std_replace(x: str, wordlist):
 
 def pipe_silo(df, txt_col_name, syms, wordlist):
     lidx: int = None
-    preidx: int = None
     for i, sep in enumerate(syms):
         if sep != " ":
             pre_col_name = f"re{str(lidx)}" if lidx is not None else txt_col_name

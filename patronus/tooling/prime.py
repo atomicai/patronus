@@ -59,7 +59,7 @@ def timer(func):
         start_time = time()
         func(*args, **kwargs)
         end_time = time()
-        logging.info("Time taken by the function is [{time}] sec".format(func=func, time=end_time - start_time))
+        logging.info(f"Time taken by the function is [{time}] sec".format(func=func, time=end_time - start_time))
 
     return wrapper
 
