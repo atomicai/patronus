@@ -223,6 +223,7 @@ def report_overall_snapshot(query: str, docs: List[Dict], filepath):
         ws.write(1 + i, 1, score, wb.add_format(f._centrify))
         ws.write(1 + i, 2, datetime, wb.add_format(f._centrify))
     writer.save()
+    writer.close()
 
 
 def send_over_email(

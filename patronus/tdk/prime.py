@@ -9,6 +9,7 @@ import hdbscan
 import plotly
 import polars as pl
 import pyarrow.parquet as pq
+import random_name
 import torch
 from bertopic import BERTopic
 from flask import jsonify, request, send_file, session
@@ -95,7 +96,8 @@ def upload():
     response = {}
     logger.info("welcome to upload`")
     xf = request.files["file"]
-    filename = secure_filename(xf.filename)
+    prefixname = random_name.generate_name()
+    filename = secure_filename(prefixname + xf.filename)
     ic(f"{filename}")
     if "uid" not in session.keys():
         uid = uuid.uuid4()
@@ -211,6 +213,11 @@ def view_timeseries():
         .with_columns([pl.col("row_nr").last().over("silo").alias("idx_per_unique")])
         .filter(pl.col("row_nr") == pl.col("idx_per_unique"))
     )
+    if dfr.shape[0] >= 35_000:
+        _warning_volume = dfr.shape[0]
+        dfr = dfr.sample(35_000)
+        _clipped_volume = dfr.shape[0]
+        logger.info(f"The overall number of appeals {_warning_volume} is too much. We clipped it uniformely to {_clipped_volume}")
     ic("Stopwords removal is completed")
     ic(f"Final size after preprocessing is {str(dfr.shape)}")
     docs, times, raws = (
