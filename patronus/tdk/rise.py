@@ -34,8 +34,8 @@ store = MemoDocStore(index=index)  # This will change to "as service"
 cache_dir = pathlib.Path(os.getcwd()) / ".cache"
 
 exchange = Exchange("media", "direct", durable=True)
-inqueue = Queue("inq", exchange=exchange, routing_key="aiquery")
-outqeue = Queue("ouq", exchange=exchange, routing_key="airesponse")
+inqueue = Queue("inc", exchange=exchange, routing_key="incoming")
+requeue = Queue("ret", exchange=exchange, routing_key="returning")
 
 app = Flask(
     __name__,
@@ -65,7 +65,6 @@ app.add_url_rule("/iloading", methods=["POST"], view_func=prime.iload)
 app.add_url_rule("/downloading/<filename>", methods=["GET"], view_func=prime.download)
 app.add_url_rule("/viewing", methods=["GET"], view_func=prime.view)
 app.add_url_rule("/viewing_timeseries", methods=["POST"], view_func=prime.view_timeseries)
-app.add_url_rule("/viewing_timeseries_examples", methods=["POST"], view_func=prime.view_timeseries_examples)
 app.add_url_rule("/viewing_timeseries_plopics", methods=["POST"], view_func=prime.view_timeseries_plopics)
 app.add_url_rule("/viewing_timeseries_tropics", methods=["POST"], view_func=prime.view_timeseries_tropics)
 app.add_url_rule("/viewing_representation", methods=["POST"], view_func=prime.view_representation)

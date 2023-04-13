@@ -3,12 +3,13 @@ Here are all the auxiliary functions being used throughout the processing pipeli
 """
 import string
 from functools import partial
-from typing import ClassVar, Dict
+from typing import ClassVar, Dict, Optional
 
 import dateparser as dp
 import polars as pl
 
 from patronus.etc.schema import Document
+from patronus.tooling import stl
 
 
 def pipe_cmp_date(dx: ClassVar[Document], dy: ClassVar[Document]):
@@ -18,8 +19,8 @@ def pipe_cmp_date(dx: ClassVar[Document], dy: ClassVar[Document]):
         dx (_type_): Document
         dy (_type_): Document
     """
-    predate = dp.parse(dx.meta["timestamp"])
-    curdate = dp.parse(dy.meta["timestamp"])
+    predate = dx.meta["timestamp"]
+    curdate = dy.meta["timestamp"]
     if predate >= curdate:
         return 1
     return -1
@@ -66,7 +67,11 @@ def std_replace(x: str, wordlist):
     return " ".join(r)
 
 
-def pipe_silo(df, txt_col_name, syms, wordlist):
+def std_cast(x: str):
+    return dp.parse(x)
+
+
+def pipe_silo(df, txt_col_name, syms, wordlist, date_col_name: str = None):  # TODO: perform apply to another column as well
     lidx: int = None
     for i, sep in enumerate(syms):
         if sep != " ":
@@ -78,12 +83,16 @@ def pipe_silo(df, txt_col_name, syms, wordlist):
                 df = df.drop([pre_col_name])
             lidx = i
         df = df.with_column(pl.col(f"re{str(lidx)}").apply(partial(std_replace, wordlist=set(wordlist))).alias("silo"))
+    if date_col_name is not None:
+        df = df.with_column(pl.col(date_col_name).apply(std_cast).alias(f"redate")).with_column(
+            pl.col("redate").cast(pl.Datetime)
+        )
+
     return df
 
 
 def _silo(df, txt_col_name, wordlist):
     df = df.with_column(pl.col(txt_col_name).apply(partial(std_replace, wordlist=set(wordlist))).alias("silo"))
-
     return df
 
 
@@ -109,24 +118,24 @@ def pipe_polar(df, txt_col_name, fn, seps):
     return df
 
 
-def pipe_cmp(_df, date_column="datetime", pivot_date="2022-12-11 22:40:41", window_size: int = 1):
-    pivot_day = dp.parse(pivot_date) if isinstance(pivot_date, str) else pivot_date
-    start_day = pivot_day.day - window_size
-    end_day = pivot_day.day + window_size
-    start_date = dp.parse(
-        f"{pivot_day.year}/{pivot_day.month}/{start_day} {pivot_day.hour}:{pivot_day.minute}:{pivot_day.second}"
-    )
-    end_date = dp.parse(f"{pivot_day.year}/{pivot_day.month}/{end_day} {pivot_day.hour}:{pivot_day.minute}:{pivot_day.second}")
+def pipe_bound(
+    _df,
+    date_column="datetime",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    topic_id: Optional[int] = None,
+    topic_column="topic",
+):
+    start = dp.parse(start_date) if isinstance(start_date, str) else start_date
+    end = dp.parse(end_date) if isinstance(end_date, str) else end_date
     _df = _df.with_columns(
-        [
-            pl.when(pl.col(date_column).is_between(start=start_date, end=end_date, include_bounds=True))
-            .then("Yes")
-            .otherwise("No")
-            .alias("match")
-        ]
+        [pl.when(pl.col(date_column).is_between(start=start, end=end, closed="both")).then("Yes").otherwise("No").alias("match")]
     )
-    _df = _df.filter(pl.col("match") == "Yes")
+    if topic_id is None:
+        _df = _df.filter(pl.col("match") == "Yes")
+    else:
+        _df = _df.filter(pl.col("match") == "yes" & pl.col(topic_column) == topic_id)
     return _df.drop(["match"])
 
 
-__all__ = ["pipe_nullifier", "pipe_polar", "pipe_cmp_date", "std_map", "pipe_std_parse", "std_date"]
+__all__ = ["pipe_nullifier", "pipe_polar", "pipe_bound", "pipe_cmp_date", "std_map", "pipe_std_parse", "std_date"]

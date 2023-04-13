@@ -5,6 +5,7 @@ import os
 import uuid
 from pathlib import Path
 
+import dateparser as dp
 import hdbscan
 import plotly
 import polars as pl
@@ -18,6 +19,7 @@ from sentence_transformers import SentenceTransformer
 from umap import UMAP
 from werkzeug.utils import secure_filename
 
+from patronus.etc import Document
 from patronus.modeling.module import BM25Okapi, ISKeyworder
 from patronus.processing import IPrefixer, IStopper
 from patronus.processing import pipe as ppipe
@@ -199,37 +201,39 @@ def view():
 def view_timeseries():
     uid = str(session["uid"])
     filename = Path(session["filename"])
-    dfr = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")  # raw without cleaning, etc..
+    df = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")  # raw without cleaning, etc..
     tecol, dacol = session["text"], session["datetime"]
-    dfr = dfr.filter(~pl.col(tecol).is_null() & ~pl.col(dacol).is_null())
+    df = df.filter(~pl.col(tecol).is_null() & ~pl.col(dacol).is_null())
     try:
-        dfr = dfr.sort([dacol])
+        df = df.sort([dacol])
     except:  # add logging to determine futher the problem.
         ic(f"Failed to sort by datetime file {uid}-{filename.stem}")
-    dfr = ppipe.pipe_silo(dfr, tecol, syms=[":"], wordlist=set(stopper))
+    df = ppipe.pipe_silo(df, tecol, syms=[":"], wordlist=set(stopper), date_col_name=dacol)
     print("silo")
-    dfr = (
-        dfr.with_row_count()
+    df = (
+        df.with_row_count()
         .with_columns([pl.col("row_nr").last().over("silo").alias("idx_per_unique")])
         .filter(pl.col("row_nr") == pl.col("idx_per_unique"))
     )
-    if dfr.shape[0] >= 35_000:
-        _warning_volume = dfr.shape[0]
-        dfr = dfr.sample(35_000)
-        _clipped_volume = dfr.shape[0]
-        logger.info(f"The overall number of appeals {_warning_volume} is too much. We clipped it uniformely to {_clipped_volume}")
+    if df.shape[0] >= int(os.environ.get("TOP_N_ROWS", 20_000)):
+        _warning_volume = df.shape[0]
+        df = df.sample(int(os.environ.get("TOP_N_ROWS", 20_000)))
+        _clipped_volume = df.shape[0]
+        logger.info(
+            f"The overall number of appeals {_warning_volume} is too much. We clipped it uniformely to {_clipped_volume}"
+        )
     ic("Stopwords removal is completed")
-    ic(f"Final size after preprocessing is {str(dfr.shape)}")
+    ic(f"Final size after preprocessing is {str(df.shape)}")
     docs, times, raws = (
-        [str(d) for d in list(dfr.select("silo"))[0]],
-        [str(d) for d in list(dfr.select(session["datetime"]))[0]],
-        [str(d) for d in list(dfr.select(session["text"]))[0]],
+        [str(d) for d in list(df.select("silo"))[0]],
+        [d for d in list(df.select("redate"))[0]],
+        [str(d) for d in list(df.select(session["text"]))[0]],
     )  # TODO: add wrapper around to cast times to the same format.
-
-    # times = [ppipe.pipe_std_parse(_t) for _t in times]
     embeddings = model.encode(docs, show_progress_bar=True, device=devices[0])
     _botpic = botpic.fire(min_topic_size=min(25, len(docs) // 12))
     topics, probs = _botpic.fit_transform(docs, embeddings=embeddings)  # we use model under the hood
+    df = df.with_column(pl.Series(topics).alias("topic"))
+    session["db"] = df
     info = _botpic.get_topic_info()
     docs_per_topic = (
         pl.DataFrame({"Doc": docs, "Topic": topics, "Id": range(len(docs))})
@@ -282,14 +286,12 @@ def view_timeseries():
 
     # TODO:
     session["plopics"] = _botpic.visualize_topics(width=1250, height=450)
-    session["examples"] = _botpic.visualize_documents(raws, width=1250, height=450, embeddings=embeddings)
     session["tropics"] = _botpic.visualize_barchart(width=312.5, height=225, title="Topic Word Scores")
 
     response = [
         {
             "figure": json.loads(plotly.io.to_json(plotly_wordcloud(" ".join(docs), scale=1), pretty=True)),
             "lazy_figure_api": [
-                {"api": "viewing_timeseries_examples", "title": "Representative documents per topic", "response_type": "docs"},
                 {
                     "api": "viewing_timeseries_plopics",
                     "title": "Collinearity between topics",
@@ -302,10 +304,6 @@ def view_timeseries():
         },
     ]
     return jsonify(response)
-
-
-def view_timeseries_examples():
-    return plotly.io.to_json(session["examples"], pretty=True)
 
 
 def view_timeseries_tropics():
@@ -331,6 +329,7 @@ def view_representation():
     response = None
     try:
         left_date, right_date = data.get("from", None), data.get("to", None)
+        # TODO: here we propagate to retrieve not only keywords but overall topics
         response = engine.retrieve_top_k(querix, topic_ids=[q_idx], left_date=left_date, right_date=right_date, top_k=250)
     except:
         return jsonify({"docs": []})
@@ -338,7 +337,10 @@ def view_representation():
     docs = pipe.pipe_paint_docs(docs=response, querix=querix, prefix=list(prefixer))
     ic(f"Получено {len(docs)} примеров в рамках запроса по тематике {q_idx} c проставленными датами")
     if left_date is None and right_date is None:
-        kods = pipe.pipe_paint_kods(docs=response, engine=engine, keyworder=iworder, left_date=left_date, right_date=right_date)
+        # Let's implement pure filtering without ranking to compare the results
+        df = session["db"]
+        sub = [str(d) for d in list(df.filter(pl.col("topic") == q_idx).select("silo"))[0]]
+        kods = pipe.pipe_paint_kods(docs=sub, engine=engine, keyworder=iworder, left_date=left_date, right_date=right_date)
         return jsonify({"docs": docs, "keywords": kods})
     return jsonify({"docs": docs})
 

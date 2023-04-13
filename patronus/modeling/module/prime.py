@@ -91,11 +91,13 @@ class BM25Okapi(ISFI, IRI):
         num_tok = 0  # number of tokens (words) across all documents
         for idx, document in enumerate(corpus):  # TODO: rewrite using batches instead
             doc = (
-                Document.from_dict({"content": document}) if isinstance(document, str) else Document.from_dict(document)
+                Document.from_dict({"content": document.strip().lower()})
+                if isinstance(document, str)
+                else Document.from_dict(document)
             )  # add idx -> documnet_id mapping to support retrieving by idx
             self.connector[idx] = doc.id
             self.store.write([doc])
-            uni: List[str] = self.processor(doc.content)  # Unified and splitted across atomic units
+            uni: List[str] = self.processor(doc.content.strip().lower())  # Unified and splitted across atomic units
             self.doc_len.append(len(uni))  # length distribution across corpus
             num_tok += len(uni)  # num of tokens overall including repetitions
 
@@ -188,12 +190,14 @@ class BM25Okapi(ISFI, IRI):
         """Move the `querify` semantic here to simplify api"""
         # TODO: ... rewrite yielding Generator ...
         left_date = (
-            dp.parse(left_date, settings={"DATE_ORDER": "DMY"}) if left_date is not None and isinstance(left_date, str) else None
+            dp.parse(left_date, settings={"DATE_ORDER": "DMY"})
+            if left_date is not None and isinstance(left_date, str)
+            else left_date
         )
         right_date = (
             dp.parse(right_date, settings={"DATE_ORDER": "DMY"})
             if right_date is not None and isinstance(right_date, str)
-            else None
+            else right_date
         )
         score = self.querify(query)
         ranking = np.argsort(score)[::-1]  # sort in descending order idx - wise
@@ -207,7 +211,7 @@ class BM25Okapi(ISFI, IRI):
         topic_ids = set(topic_ids) if topic_ids else None
         while it.has_next() and len(response) < top_k:
             doc = it.next()
-            cur_timestamp = dp.parse(doc.meta["timestamp"])
+            cur_timestamp = doc.meta["timestamp"]
             if topic_ids is not None:
                 cur_topic_id = doc.meta["topic_id"]
                 if cur_topic_id not in topic_ids:

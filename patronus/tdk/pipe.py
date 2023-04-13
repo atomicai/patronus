@@ -8,10 +8,12 @@ import numpy as np
 import pandas as pd
 import polars as pl
 import sklearn
+from flask import session
 from sklearn.feature_extraction.text import CountVectorizer
 
 from patronus.etc import Document
 from patronus.processing import KeywordProcessor
+from patronus.processing.module import pipe as ppipe
 from patronus.tooling import Email, stl
 from patronus.viewing.module import IFormat
 
@@ -66,21 +68,21 @@ def pipe_paint_kods(docs, engine, keyworder, window_size: int = 1, left_date: st
     """
     Supposed to return the distribution of the word accross the whole corpus and highlight the `spike` over specific range
     """
-
-    keywords = keyworder.extract([d.content for d in docs])
+    keywords = keyworder.extract([str(d).strip().lower() for d in docs])
     documents = engine.store.get_all_documents()
     qij = {key[0]: list() for key in keywords}
     # kw = KeywordProcessor()
     # kw.add_keywords_from_list(list(qij.keys()))
     left_date = dt.datetime.min if left_date is None else dp.parse(left_date)
     right_date = dt.datetime.max if right_date is None else dp.parse(right_date)
+    session["db"]
     for k, _ in keywords:
         posix = engine.tok[k]  # idx, number of occurence(s)
         _in_range: bool = True
         lo: int = 0
         while _in_range and lo < len(posix):
             ix = posix[lo][0]
-            timing = dp.parse(documents[ix].meta["timestamp"])
+            timing = documents[ix].meta["timestamp"]
             if timing < left_date or timing > right_date:
                 if timing < left_date:
                     lo += 1
@@ -91,16 +93,16 @@ def pipe_paint_kods(docs, engine, keyworder, window_size: int = 1, left_date: st
             while (
                 hi < len(posix)
                 and posix[hi][0] < len(documents)
-                and dp.parse(documents[posix[hi][0]].meta["timestamp"]) - dt.timedelta(days=window_size) < timing
-                and dp.parse(documents[posix[hi][0]].meta["timestamp"]) <= right_date
+                and documents[posix[hi][0]].meta["timestamp"] - dt.timedelta(days=window_size) < timing
+                and documents[posix[hi][0]].meta["timestamp"] <= right_date
             ):
                 hi += 1
             mid = lo + ((hi - lo) >> 1)
             midx = posix[mid][0]
-            timestamp = dp.parse(documents[midx].meta["timestamp"])
-            qij[k].append(
-                {"timestamp": timestamp.strftime("%d/%m/%y %H:%M:%S"), "value": hi - lo, "relative": np.random.randint(0, 100)}
-            )
+            timestamp = documents[midx].meta["timestamp"]
+            # TODO: replace fake with real relative value
+            relative = int(np.round((hi - lo) * 1.0 / (1.0 + posix[hi - 1][0] - posix[lo][0]) * 100.0))
+            qij[k].append({"timestamp": timestamp.strftime("%d/%m/%y %H:%M:%S"), "value": hi - lo, "relative": relative})
             lo = hi
     return qij
 
