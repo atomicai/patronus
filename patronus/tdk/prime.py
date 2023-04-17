@@ -16,6 +16,7 @@ from bertopic import BERTopic
 from flask import jsonify, request, send_file, session
 from icecream import ic
 from sentence_transformers import SentenceTransformer
+from sklearn.cluster import KMeans
 from umap import UMAP
 from werkzeug.utils import secure_filename
 
@@ -61,8 +62,10 @@ botpic = OS(
     BERTopic,
     config=dict(
         umap_model=UMAP(
-            n_neighbors=30,
+            n_neighbors=22,
             random_state=42,
+            min_dist=0.0,
+            n_components=5,
             init="random",
             metric="cosine",
         ),
@@ -162,8 +165,12 @@ def iload():
     #
     uid = session["uid"]
     filename = Path(session["filename"])
-    text_column, datetime_column = data.get("text", None), data.get("datetime", None)
-    is_text_ok, is_date_ok = False, False
+    text_column, datetime_column, num_clusters = (
+        data.get("text", None),
+        data.get("datetime", None),
+        data.get("num_clusters", None),
+    )
+    is_text_ok, is_date_ok, is_num_clusters_ok = False, False, False
     df = pl.scan_parquet(cache_dir / uid / f"{filename.stem}.parquet")
     if text_column is not None and text_column in df.columns:
         session["text"] = text_column
@@ -172,10 +179,22 @@ def iload():
         session["datetime"] = datetime_column
         is_date_ok = True
 
+    if num_clusters is not None and int(num_clusters) > 0 and int(num_clusters) < 30:
+        session["num_clusters"] = int(num_clusters)
+        is_num_clusters_ok = True
+    else:
+        logger.info(
+            f"The number of clusters specified {str(num_clusters)} is not in a reasonable range. Setting default to {str(7)}"
+        )
+        session["num_clusters"] = 7
+
     session["email"] = data.get("email", None)
 
     if is_date_ok and is_text_ok:
-        return jsonify({"success": "In progress to the moon🚀"})
+        if is_num_clusters_ok:
+            return jsonify({"success": "In progress to the moon 🚀"})
+        else:
+            return jsonify({"success": "In progress to the moon 🚀 with d"})
     else:
         return jsonify({"Error": "Back to earth ♁. Fix the column name(s) 🔨"})
 
@@ -204,10 +223,6 @@ def view_timeseries():
     df = pl.read_parquet(cache_dir / uid / f"{filename.stem}.parquet")  # raw without cleaning, etc..
     tecol, dacol = session["text"], session["datetime"]
     df = df.filter(~pl.col(tecol).is_null() & ~pl.col(dacol).is_null())
-    try:
-        df = df.sort([dacol])
-    except:  # add logging to determine futher the problem.
-        ic(f"Failed to sort by datetime file {uid}-{filename.stem}")
     df = ppipe.pipe_silo(df, tecol, syms=[":"], wordlist=set(stopper), date_col_name=dacol)
     print("silo")
     df = (
@@ -215,22 +230,23 @@ def view_timeseries():
         .with_columns([pl.col("row_nr").last().over("silo").alias("idx_per_unique")])
         .filter(pl.col("row_nr") == pl.col("idx_per_unique"))
     )
-    if df.shape[0] >= int(os.environ.get("TOP_N_ROWS", 20_000)):
+    if df.shape[0] >= int(os.environ.get("TOP_N_ROWS", 10_000)):
         _warning_volume = df.shape[0]
-        df = df.sample(int(os.environ.get("TOP_N_ROWS", 20_000)))
+        df = df.sample(int(os.environ.get("TOP_N_ROWS", 10_000)))
         _clipped_volume = df.shape[0]
         logger.info(
             f"The overall number of appeals {_warning_volume} is too much. We clipped it uniformely to {_clipped_volume}"
         )
-    ic("Stopwords removal is completed")
-    ic(f"Final size after preprocessing is {str(df.shape)}")
+    df = df.sort(["redate"])
     docs, times, raws = (
         [str(d) for d in list(df.select("silo"))[0]],
         [d for d in list(df.select("redate"))[0]],
         [str(d) for d in list(df.select(session["text"]))[0]],
     )  # TODO: add wrapper around to cast times to the same format.
     embeddings = model.encode(docs, show_progress_bar=True, device=devices[0])
-    _botpic = botpic.fire(min_topic_size=min(25, len(docs) // 12))
+    ic(f"{min(25, len(docs) // 12)}")
+    _min_topic_size = min(25, len(docs) // 12) if len(docs) <= 5_000 else 122
+    _botpic = botpic.fire(min_topic_size=_min_topic_size, hdbscan_model=KMeans(n_clusters=session["num_clusters"]))
     topics, probs = _botpic.fit_transform(docs, embeddings=embeddings)  # we use model under the hood
     df = df.with_column(pl.Series(topics).alias("topic"))
     session["db"] = df

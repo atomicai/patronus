@@ -100,8 +100,14 @@ def pipe_paint_kods(docs, engine, keyworder, window_size: int = 1, left_date: st
             mid = lo + ((hi - lo) >> 1)
             midx = posix[mid][0]
             timestamp = documents[midx].meta["timestamp"]
+            tx = documents[posix[lo][0]].meta["timestamp"]
+            ty = documents[posix[hi - 1][0]].meta["timestamp"]
             # TODO: replace fake with real relative value
-            relative = int(np.round((hi - lo) * 1.0 / (1.0 + posix[hi - 1][0] - posix[lo][0]) * 100.0))
+            connection = session["db"]
+            start_date = dp.parse(f"{tx.year}/{tx.month}/{tx.day} 00:00:00")
+            end_date = dp.parse(f"{ty.year}/{ty.month}/{ty.day} 23:59:59")
+            daily_volume = ppipe.pipe_bound(connection, "redate", start_date, end_date).shape[0]
+            relative = int(np.round((((hi - lo) * 1.0 / daily_volume)) * 100.0))
             qij[k].append({"timestamp": timestamp.strftime("%d/%m/%y %H:%M:%S"), "value": hi - lo, "relative": relative})
             lo = hi
     return qij
