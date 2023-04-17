@@ -71,8 +71,6 @@ def pipe_paint_kods(docs, engine, keyworder, window_size: int = 1, left_date: st
     keywords = keyworder.extract([str(d).strip().lower() for d in docs])
     documents = engine.store.get_all_documents()
     qij = {key[0]: list() for key in keywords}
-    # kw = KeywordProcessor()
-    # kw.add_keywords_from_list(list(qij.keys()))
     left_date = dt.datetime.min if left_date is None else dp.parse(left_date)
     right_date = dt.datetime.max if right_date is None else dp.parse(right_date)
     session["db"]
@@ -207,8 +205,6 @@ def report_overall_topics(keywords: Dict, info: pd.DataFrame, filepath, plopics:
             ws.write(start_idx + i, 2, word, wb.add_format(f.purify(pallete)))
             ws.write(start_idx + i, 3, score)
 
-        # TODO: Add topic(s) for the spike
-
     writer.save()
 
 
@@ -253,7 +249,6 @@ def send_over_email(
 
 
 __all__ = [
-    "pipe_polar",
     "pipe_paint_docs",
     "pipe_paint_kods",
     "extract_top_n_words_per_topic",

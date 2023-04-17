@@ -3,20 +3,11 @@ import os
 import pathlib
 
 import dotenv
-import numpy as np
-
-# import plotly.express as px
-from flask import Flask, jsonify, render_template, request, send_file, send_from_directory, session
-from icecream import ic
-from kombu import Connection, Exchange, Queue
-from sentence_transformers import SentenceTransformer
-from werkzeug.utils import secure_filename
+from flask import Flask, send_from_directory
 
 from flask_session import Session
-from patronus.etc import Document
 from patronus.storing.module import MemoDocStore
 from patronus.tdk import prime
-from patronus.tooling import initialize_device_settings
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -32,10 +23,6 @@ top_k = int(os.environ.get("TOP_K", 5))
 index = os.environ.get("INDEX", "document")
 store = MemoDocStore(index=index)  # This will change to "as service"
 cache_dir = pathlib.Path(os.getcwd()) / ".cache"
-
-exchange = Exchange("media", "direct", durable=True)
-inqueue = Queue("inc", exchange=exchange, routing_key="incoming")
-requeue = Queue("ret", exchange=exchange, routing_key="returning")
 
 app = Flask(
     __name__,

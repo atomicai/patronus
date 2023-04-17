@@ -5,8 +5,6 @@ import os
 import uuid
 from pathlib import Path
 
-import dateparser as dp
-import hdbscan
 import plotly
 import polars as pl
 import pyarrow.parquet as pq
@@ -20,7 +18,6 @@ from sklearn.cluster import KMeans
 from umap import UMAP
 from werkzeug.utils import secure_filename
 
-from patronus.etc import Document
 from patronus.modeling.module import BM25Okapi, ISKeyworder
 from patronus.processing import IPrefixer, IStopper
 from patronus.processing import pipe as ppipe
@@ -280,7 +277,6 @@ def view_timeseries():
 
     _plopics = {k: list(v) for k, v in _plopics.items()}
 
-    # TODO: use timestamp from topics_over_time!
     report_filepath = Path(os.getcwd()) / ".cache" / uid / str(filename.stem + ".xlsx")
     pipe.report_overall_topics(
         keywords=top_n_words,
@@ -289,18 +285,16 @@ def view_timeseries():
         plopics=_plopics,
         topk=5,
     )
-    # TODO: send the report over email to the recievers with attachment(s) = [report_filepath]
     if session.get("email", None) is not None:
         pipe.send_over_email(
             attachments=[report_filepath],
             receivers=[str(session["email"])],
             subject="Анализ обращений по ключевым словам в разрезе разных тематик",
             message="Во вложении файл с аналитикой.\nС уважением, Команда корневых причин.",
-            author="itarlinskiy@yandex.ru",
+            author=os.environ.get("EMAIL"),
         )
     fig = _botpic.visualize_topics_over_time(topics_over_time, top_n_topics=10)
 
-    # TODO:
     session["plopics"] = _botpic.visualize_topics(width=1250, height=450)
     session["tropics"] = _botpic.visualize_barchart(width=312.5, height=225, title="Topic Word Scores")
 
